@@ -123,11 +123,19 @@ class ViseronRequestHandler(tornado.web.RequestHandler):
         return IOLoop.current()
 
     def get_subpath(self) -> str:
-        """Get the configured subpath.
+        """Get the subpath for URL construction.
 
-        Returns the subpath configured in the webserver configuration.
-        Returns empty string if not configured.
+        Checks the X-Ingress-Path request header first (set by Home Assistant
+        Ingress proxy), then falls back to the configured subpath.
+        Returns empty string if neither is set.
         """
+        ingress_path = self.request.headers.get("X-Ingress-Path", "")
+        if ingress_path:
+            # Normalize: ensure it starts with / and doesn't end with /
+            ingress_path = ingress_path.strip()
+            if ingress_path.endswith("/"):
+                ingress_path = ingress_path.rstrip("/")
+            return ingress_path
         return self._webserver.configured_subpath
 
     def on_finish(self) -> None:
