@@ -69,13 +69,14 @@ class ObjectDetector(AbstractObjectDetector):
             boxes = result.boxes
 
             for i in range(len(boxes)):  # pylint: disable=consider-using-enumerate
-                cls = int(boxes[i].cls[0])
-                [x1, y1, x2, y2] = boxes[i].xyxy[0]
+                box = boxes[i]
+                cls = int(box.cls[0])
+                [x1, y1, x2, y2] = box.xyxy[0]
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                 objects.append(
                     DetectedObject.from_absolute(
                         label=classes_names[cls],
-                        confidence=float(boxes[i].conf),
+                        confidence=float(box.conf),
                         x1=x1,
                         y1=y1,
                         x2=x2,
