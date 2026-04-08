@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from ultralytics import YOLO
@@ -82,7 +82,7 @@ class ObjectDetector(AbstractObjectDetector):
                         x2=x2,
                         y2=y2,
                         frame_res=self._camera.resolution,
-                        model_res=result.orig_shape[::-1],
+                        model_res=cast("tuple[int, int]", result.orig_shape[::-1]),
                     )
                 )
         return objects
