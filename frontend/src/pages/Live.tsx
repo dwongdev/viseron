@@ -900,13 +900,13 @@ function Live() {
           paddingX: isFullscreen ? 0 : { xs: 1, md: 2 },
           height: isFullscreen
             ? "100vh"
-            : `calc(100dvh - ${theme.headerHeight}px - ${theme.headerMargin})`,
+            : `calc(100dvh - var(--header-height, ${theme.headerHeight}px) - ${theme.headerMargin})`,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           maxHeight: isFullscreen
             ? "100vh"
-            : `calc(100dvh - ${theme.headerHeight}px - ${theme.headerMargin})`,
+            : `calc(100dvh - var(--header-height, ${theme.headerHeight}px) - ${theme.headerMargin})`,
         }}
       >
         <PlayerCard />
