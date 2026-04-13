@@ -20,6 +20,7 @@ import ViseronLogo from "svg/viseron-logo.svg?react";
 
 import Breadcrumbs from "components/header/Breadcrumbs";
 import Drawer from "components/header/Drawer";
+import SetupErrorBanner from "components/header/SetupErrorBanner";
 import { useAuthContext } from "context/AuthContext";
 import { ColorModeContext } from "context/ColorModeContext";
 import { ViseronContext } from "context/ViseronContext";
@@ -239,6 +240,7 @@ export default function AppHeader() {
             </Typography>
           </Box>
         ) : null}
+        <SetupErrorBanner />
       </Header>
     </>
   );
