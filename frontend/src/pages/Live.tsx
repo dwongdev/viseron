@@ -36,6 +36,7 @@ import { useGridLayoutStore } from "stores/GridLayoutStore";
 import { useShallow } from "zustand/react/shallow";
 
 import { CameraPickerDialog } from "components/camera/CameraPickerDialog";
+import { NoCamerasConfigured } from "components/camera/NoCamerasConfigured";
 import {
   useCameraStore,
   useFilteredCameras,
@@ -51,6 +52,7 @@ import { VideoRTC } from "components/player/liveplayer/video-rtc";
 import { MjpegPlayer } from "components/player/mjpegplayer/MjpegPlayer";
 import { ViewSpeedDial } from "components/player/view/ViewSpeedDial";
 import { useFullscreen } from "context/FullscreenContext";
+import { useHasCamerasConfigured } from "hooks/UseHasCamerasConfigured";
 import { useTitle } from "hooks/UseTitle";
 import { useCameras } from "lib/api/cameras";
 import { BASE_PATH } from "lib/api/client";
@@ -861,6 +863,7 @@ function Live() {
   const { resetLayout } = useGridLayoutStore();
   const { isFullscreen } = useFullscreen();
   const cameras = useCameras({});
+  const hasCamerasConfigured = useHasCamerasConfigured();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -887,7 +890,11 @@ function Live() {
   }
 
   if (!objHasValues<typeof cameras.data>(cameras.data)) {
-    return <Loading text="Waiting for cameras to register" />;
+    return hasCamerasConfigured ? (
+      <Loading text="Waiting for cameras to register" />
+    ) : (
+      <NoCamerasConfigured />
+    );
   }
 
   return (
