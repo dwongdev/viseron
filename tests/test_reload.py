@@ -598,6 +598,72 @@ class TestCheckDefaultComponentChanges:
         assert result == expected
 
 
+class TestReloadChangesRemoveDefaultComponents:
+    """Test ReloadChanges.remove_default_components method."""
+
+    def test_empty_lists_unchanged(self) -> None:
+        """Test that empty lists remain empty after filtering."""
+        changes = ReloadChanges()
+        changes.remove_default_components()
+
+        assert not changes.components_to_reload
+        assert not changes.domains_to_reload
+        assert not changes.identifiers_to_reload
+
+    def test_only_default_components_are_removed(self) -> None:
+        """Test that entries for DEFAULT_COMPONENTS are removed from all lists."""
+        changes = ReloadChanges(
+            components_to_reload=[
+                ComponentChange(
+                    component_name="webserver",
+                    old_config={"key": "old"},
+                    new_config={"key": "new"},
+                ),
+                ComponentChange(
+                    component_name="storage",
+                    old_config={"key": "old"},
+                    new_config={"key": "new"},
+                ),
+            ],
+        )
+        changes.remove_default_components()
+
+        assert not changes.components_to_reload
+        assert not changes.domains_to_reload
+        assert not changes.identifiers_to_reload
+
+    def test_non_default_components_are_kept(self) -> None:
+        """Test that entries for non-default components are not removed."""
+        ffmpeg_comp = ComponentChange(
+            component_name="ffmpeg",
+            old_config={"key": "old"},
+            new_config={"key": "new"},
+        )
+        ffmpeg_domain = DomainChange(
+            component_name="ffmpeg",
+            domain="camera",
+            old_config=None,
+            new_config={"cam1": {}},
+        )
+        ffmpeg_id = IdentifierChange(
+            component_name="ffmpeg",
+            domain="camera",
+            identifier="cam1",
+            old_config=None,
+            new_config={"host": "192.168.1.1"},
+        )
+        changes = ReloadChanges(
+            components_to_reload=[ffmpeg_comp],
+            domains_to_reload=[ffmpeg_domain],
+            identifiers_to_reload=[ffmpeg_id],
+        )
+        changes.remove_default_components()
+
+        assert changes.components_to_reload == [ffmpeg_comp]
+        assert changes.domains_to_reload == [ffmpeg_domain]
+        assert changes.identifiers_to_reload == [ffmpeg_id]
+
+
 class TestHandleRemovedComponents:
     """Test _handle_removed_components function."""
 
