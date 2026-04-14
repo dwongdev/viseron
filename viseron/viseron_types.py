@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from viseron.components.ptz import PTZ
     from viseron.components.storage import Storage
     from viseron.components.telegram.ptz_control import TelegramPTZ
+    from viseron.components.webhook import Webhook
     from viseron.components.webserver import Webserver
     from viseron.components.webserver.download_token import DownloadToken
     from viseron.components.webserver.public_image_token import PublicImageToken
@@ -73,6 +74,7 @@ class ViseronData(TypedDict, total=False):
     mqtt: MQTT
     nvr: dict[str, NVR]
     telegram: TelegramPTZ
+    webhook: Webhook
     ptz: PTZ
 
 
