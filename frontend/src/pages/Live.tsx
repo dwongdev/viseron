@@ -10,6 +10,7 @@ import {
   WifiBridgeAlt,
 } from "@carbon/icons-react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Fab from "@mui/material/Fab";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -18,6 +19,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
@@ -799,6 +801,7 @@ export function PlayerCard() {
   const theme = useTheme();
   const isMobileOrSmall = useMediaQuery(theme.breakpoints.down("md"));
   const paperRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
+  const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
 
   const renderPlayer = useCallback(
     (
@@ -814,6 +817,41 @@ export function PlayerCard() {
   // 1. Current layout is 'auto', OR
   // 2. Device is mobile/small (below md breakpoint)
   const shouldUseAutoLayout = currentLayout === "auto" || isMobileOrSmall;
+
+  if (!objHasValues(filteredCameras)) {
+    return (
+      <>
+        <CameraPickerDialog
+          open={cameraDialogOpen}
+          setOpen={setCameraDialogOpen}
+        />
+        <Paper
+          variant="outlined"
+          sx={{
+            width: "100%",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            overflow: "hidden",
+          }}
+        >
+          <Typography variant="h6" color="text.secondary">
+            No cameras are selected
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<VideoAdd size={18} />}
+            onClick={() => setCameraDialogOpen(true)}
+          >
+            Select Cameras
+          </Button>
+        </Paper>
+      </>
+    );
+  }
 
   return (
     <Paper
