@@ -1534,8 +1534,8 @@ class TestReloadConfig:
 
         assert result.success is False
         assert "Config validation failed" in result.errors[0].message
-        mock_removed.assert_called_once()
-        mock_added.assert_called_once()
+        mock_removed.assert_not_called()
+        mock_added.assert_not_called()
         mock_check_defaults.assert_called_once()
         mock_apply.assert_not_called()
         vis.set_config.assert_not_called()
