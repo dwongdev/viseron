@@ -468,11 +468,6 @@ def _reload_config(
             f"Changes detected in default components {default_components_changed}, "
             f"restart is required to apply these changes"
         )
-        diff.remove_default_components()
-        changes.remove_default_components()
-
-    _handle_removed_components(vis, diff, plan)
-    _handle_added_components(diff, plan)
 
     validation_errors = _validate_config(vis, new_config, changes)
     if validation_errors:
@@ -481,6 +476,11 @@ def _reload_config(
         LOGGER.error("Config validation failed, aborting reload")
         return result
 
+    diff.remove_default_components()
+    changes.remove_default_components()
+
+    _handle_removed_components(vis, diff, plan)
+    _handle_added_components(diff, plan)
     _handle_modified_components(vis, changes, plan)
     _handle_modified_domains(vis, changes, plan)
     _handle_modified_identifiers(vis, changes, plan)
