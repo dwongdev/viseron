@@ -543,11 +543,17 @@ def unload_domain_identifier(
 def unload_domain_chain(
     vis: Viseron, domain: SupportedDomains, identifier: str
 ) -> set[str]:
-    """Unload a domain and all its dependents in the correct order."""
+    """Unload a domain and all its dependents in the correct order.
+
+    Returns the component names of dependents that need re-setup.
+    The root domain's own component is intentionally excluded.
+    """
     unload_order = get_unload_order(vis, domain, identifier)
     affected_components = set()
     for entry in unload_order:
-        affected_components.add(entry.component_name)
+        # Only dependents need to be re-setup, not the root being unloaded.
+        if entry.domain != domain or entry.identifier != identifier:
+            affected_components.add(entry.component_name)
         unload_domain_identifier(vis, entry.domain, entry.identifier)
     return affected_components
 
