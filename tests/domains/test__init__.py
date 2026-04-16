@@ -419,7 +419,7 @@ class TestUnloadDomainChain:
     """Test unload_domain_chain function."""
 
     def test_returns_affected_components(self, vis: MockViseron):
-        """Test that all component names touched by the chain are returned."""
+        """Test that only dependent component names are returned, not the root's."""
         registry = vis.domain_registry
         registry.register(
             component_name="camera_comp",
@@ -442,7 +442,8 @@ class TestUnloadDomainChain:
 
         affected = unload_domain_chain(vis, "camera", "cam1")
 
-        assert affected == {"camera_comp", "nvr_comp"}
+        # camera_comp owns the root domain being unloaded and is intentionally excluded.
+        assert affected == {"nvr_comp"}
         assert registry.get("camera", "cam1") is None
         assert registry.get("nvr", "cam1") is None
 
@@ -532,7 +533,7 @@ class TestUnloadDomain:
         assert vis.domain_registry.get("camera", "cam2") is None
 
     def test_returns_affected_components(self, vis: MockViseron):
-        """Test that the set of affected component names is returned."""
+        """Test that only dependent component names are returned."""
         MockComponent(vis, "test_comp")
         self._register_domain(vis, identifier="cam1")
 
@@ -554,7 +555,7 @@ class TestUnloadDomain:
             result = unload_domain(vis, "test_comp", "camera")
 
         assert result is not None
-        assert "test_comp" in result
+        assert "test_comp" not in result
         assert "nvr_comp" in result
 
     def test_calls_domain_module_unload(self, vis: MockViseron):

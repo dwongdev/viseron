@@ -212,6 +212,8 @@ def _handle_removed_components(vis: Viseron, diff: ConfigDiff, plan: SetupPlan) 
     for component_name in diff.get_removed_components():
         affected_components = unload_component(vis, component_name)
         if affected_components:
+            # Ensure the removed component is never queued for re-setup.
+            affected_components.discard(component_name)
             plan.domain_components.update(affected_components)
             LOGGER.debug(
                 f"Components affected by unloading {component_name}: "
@@ -292,6 +294,9 @@ def _handle_cancelled_retries(
             f"Unloading retrying domain {entry.domain} with identifier "
             f"{entry.identifier} that was cancelled during reload"
         )
+        # Explicitly add the retrying domain's component.
+        # unload_domain_chain only returns dependents, not the root's own component.
+        plan.domain_components.add(entry.component_name)
         plan.domain_components.update(
             unload_domain_chain(vis, entry.domain, entry.identifier)
         )
@@ -318,6 +323,9 @@ def _unload_dependents_of_pending_domains(vis: Viseron, plan: SetupPlan) -> None
                 f"because its dependency {entry.domain} "
                 f"with identifier {entry.identifier} is now available"
             )
+            # Explicitly add the dependents component.
+            # unload_domain_chain only returns dependents of dep, not deps component.
+            plan.domain_components.add(dep.component_name)
             plan.domain_components.update(
                 unload_domain_chain(vis, dep.domain, dep.identifier)
             )
