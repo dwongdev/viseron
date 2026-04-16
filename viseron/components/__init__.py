@@ -213,6 +213,19 @@ class Component:
             self._errors.clear()
         self._validation_error = None
 
+    def clear_domain_identifier_errors(
+        self,
+        domain: SupportedDomains,
+        identifier: str,
+    ) -> None:
+        """Clear all errors for a specific domain and identifier."""
+        with self._errors_lock:
+            self._errors = [
+                e
+                for e in self._errors
+                if not (e.domain == domain and e.identifier == identifier)
+            ]
+
     def as_status_dict(self) -> dict[str, Any]:
         """Return component status as dict."""
         domains = [

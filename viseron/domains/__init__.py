@@ -187,6 +187,17 @@ def _setup_single_domain(vis: Viseron, entry: DomainEntry, tries: int = 1) -> bo
         f"{', attempt ' + str(tries) if tries > 1 else ''}"
     )
 
+    # Clear previous errors for this domain/identifier if any when retrying
+    if entry.state == DomainState.RETRYING:
+        component_instance = vis.data[LOADING].get(
+            entry.component_name, vis.data[LOADED].get(entry.component_name)
+        )
+        if component_instance is not None:
+            component_instance.clear_domain_identifier_errors(
+                domain=entry.domain,
+                identifier=entry.identifier,
+            )
+
     if entry.state != DomainState.RETRYING:
         registry.set_state(entry.domain, entry.identifier, DomainState.LOADING)
 
