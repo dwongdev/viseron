@@ -70,7 +70,7 @@ class ViseronData(TypedDict, total=False):
     edgetpu: EdgeTPUViseronData
     go2rtc: Go2RTC
     gotify: GotifyEventNotifier
-    hailo: Hailo8Detector
+    hailo: dict[Literal["object_detector"], Hailo8Detector]
     mqtt: MQTT
     nvr: dict[str, NVR]
     telegram: TelegramPTZ
