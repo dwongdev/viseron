@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from viseron.components.nvr.nvr import NVR
     from viseron.components.ptz import PTZ
     from viseron.components.storage import Storage
-    from viseron.components.telegram.ptz_control import TelegramPTZ
+    from viseron.components.telegram.telegram_types import TelegramViseronData
     from viseron.components.webhook import Webhook
     from viseron.components.webserver import Webserver
     from viseron.components.webserver.download_token import DownloadToken
@@ -73,7 +73,7 @@ class ViseronData(TypedDict, total=False):
     hailo: dict[Literal["object_detector"], Hailo8Detector]
     mqtt: MQTT
     nvr: dict[str, NVR]
-    telegram: TelegramPTZ
+    telegram: TelegramViseronData
     webhook: Webhook
     ptz: PTZ
 
