@@ -33,8 +33,14 @@ services:
         XPROTO_VERSION: "$XPROTO_VERSION"
         XVID_VERSION: "$XVID_VERSION"
         LIBXML2_VERSION: "$LIBXML2_VERSION"
-        LIBBLURAY_VERSION: "$LIBBLURAY_VERSION"
         LIBZMQ_VERSION: "$LIBZMQ_VERSION"
+        LIBPNG_VERSION: "$LIBPNG_VERSION"
+        SVTAV1_VERSION: "$SVTAV1_VERSION"
+        LIBSRT_VERSION: "$LIBSRT_VERSION"
+        LIBVMAF_VERSION: "$LIBVMAF_VERSION"
+        LIBARIBB24_VERSION: "$LIBARIBB24_VERSION"
+        ZIMG_VERSION: "$ZIMG_VERSION"
+        WHISPER_VERSION: "$WHISPER_VERSION"
         FREETYPE_SHA256SUM: "$FREETYPE_SHA256SUM"
         FRIBIDI_SHA256SUM: "$FRIBIDI_SHA256SUM"
         LIBASS_SHA256SUM: "$LIBASS_SHA256SUM"
@@ -45,11 +51,10 @@ services:
         VORBIS_SHA256SUM: "$VORBIS_SHA256SUM"
         XVID_SHA256SUM: "$XVID_SHA256SUM"
         LIBXML2_SHA256SUM: "$LIBXML2_SHA256SUM"
-        LIBBLURAY_SHA256SUM: "$LIBBLURAY_SHA256SUM"
         LIBZMQ_SHA256SUM: "$LIBZMQ_SHA256SUM"
       cache_from:
-        - roflcoopter/amd64-ffmpeg:$FFMPEG_VERSION
-    image: roflcoopter/amd64-ffmpeg:$FFMPEG_VERSION
+        - roflcoopter/amd64-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
 
   amd64-opencv:
     build:
@@ -211,8 +216,8 @@ services:
         UBUNTU_VERSION_NUMBER: "$UBUNTU_VERSION_NUMBER"
         VIDEO_CODEC_SDK_VERSION: "$VIDEO_CODEC_SDK_VERSION"
       cache_from:
-        - roflcoopter/amd64-cuda-ffmpeg:$FFMPEG_VERSION
-    image: roflcoopter/amd64-cuda-ffmpeg:$FFMPEG_VERSION
+        - roflcoopter/amd64-cuda-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
 
   amd64-cuda-opencv:
     build:
@@ -319,8 +324,8 @@ services:
         <<: *ffmpeg_args
         CMAKE_VERSION: "$CMAKE_VERSION"
       cache_from:
-        - roflcoopter/rpi3-ffmpeg:$FFMPEG_VERSION
-    image: roflcoopter/rpi3-ffmpeg:$FFMPEG_VERSION
+        - roflcoopter/rpi3-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
 
   rpi3-opencv:
     build:
@@ -443,8 +448,8 @@ services:
       args:
         <<: *ffmpeg_args
       cache_from:
-        - roflcoopter/aarch64-ffmpeg:$FFMPEG_VERSION
-    image: roflcoopter/aarch64-ffmpeg:$FFMPEG_VERSION
+        - roflcoopter/aarch64-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-ffmpeg:$FFMPEG_VERSION-$UBUNTU_VERSION
 
   aarch64-opencv:
     build:
