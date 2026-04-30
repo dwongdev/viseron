@@ -68,8 +68,8 @@ services:
         OPENVINO_VERSION: "$OPENVINO_VERSION"
         FFMPEG_VERSION: "$FFMPEG_VERSION"
       cache_from:
-        - roflcoopter/amd64-opencv:$OPENCV_VERSION
-    image: roflcoopter/amd64-opencv:$OPENCV_VERSION
+        - roflcoopter/amd64-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
 
   amd64-dlib:
     build:
@@ -225,14 +225,15 @@ services:
       dockerfile: ./docker/amd64-cuda/Dockerfile.opencv
       args:
         CUDA_VERSION: "$CUDA_VERSION"
+        UBUNTU_VERSION: "$UBUNTU_VERSION"
         UBUNTU_VERSION_NUMBER: "$UBUNTU_VERSION_NUMBER"
         MAKEFLAGS: "$MAKEFLAGS"
         OPENCV_VERSION: "$OPENCV_VERSION"
         OPENVINO_VERSION: "$OPENVINO_VERSION"
         FFMPEG_VERSION: "$FFMPEG_VERSION"
       cache_from:
-        - roflcoopter/amd64-cuda-opencv:$OPENCV_VERSION
-    image: roflcoopter/amd64-cuda-opencv:$OPENCV_VERSION
+        - roflcoopter/amd64-cuda-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
 
   amd64-cuda-dlib:
     build:
@@ -338,8 +339,8 @@ services:
         FFMPEG_VERSION: "$FFMPEG_VERSION"
         CMAKE_VERSION: "$CMAKE_VERSION"
       cache_from:
-        - roflcoopter/rpi3-opencv:$OPENCV_VERSION
-    image: roflcoopter/rpi3-opencv:$OPENCV_VERSION
+        - roflcoopter/rpi3-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
 
   rpi3-dlib:
     build:
@@ -461,8 +462,8 @@ services:
         OPENCV_VERSION: "$OPENCV_VERSION"
         FFMPEG_VERSION: "$FFMPEG_VERSION"
       cache_from:
-        - roflcoopter/aarch64-opencv:$OPENCV_VERSION
-    image: roflcoopter/aarch64-opencv:$OPENCV_VERSION
+        - roflcoopter/aarch64-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-opencv:$OPENCV_VERSION-$UBUNTU_VERSION
 
   aarch64-dlib:
     build:
@@ -601,8 +602,8 @@ services:
         MAKEFLAGS: "-j7"
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION
-    image: roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION
+        - roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-opencv:
     build:
@@ -613,8 +614,8 @@ services:
         MAKEFLAGS: "-j7"
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/jetson-nano-opencv:$OPENCV_VERSION
-    image: roflcoopter/jetson-nano-opencv:$OPENCV_VERSION
+        - roflcoopter/jetson-nano-opencv:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-opencv:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-dlib:
     build:
