@@ -80,8 +80,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         DLIB_VERSION: "$DLIB_VERSION"
       cache_from:
-        - roflcoopter/amd64-dlib:$DLIB_VERSION
-    image: roflcoopter/amd64-dlib:$DLIB_VERSION
+        - roflcoopter/amd64-dlib:$DLIB_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-dlib:$DLIB_VERSION-$UBUNTU_VERSION
 
   amd64-hailo:
     build:
@@ -92,8 +92,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         HAILO_VERSION: "$HAILO_VERSION"
       cache_from:
-        - roflcoopter/amd64-hailo:$HAILO_VERSION
-    image: roflcoopter/amd64-hailo:$HAILO_VERSION
+        - roflcoopter/amd64-hailo:$HAILO_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-hailo:$HAILO_VERSION-$UBUNTU_VERSION
 
   amd64-gpac:
     build:
@@ -104,8 +104,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         GPAC_VERSION: "$GPAC_VERSION"
       cache_from:
-        - roflcoopter/amd64-gpac:$GPAC_VERSION
-    image: roflcoopter/amd64-gpac:$GPAC_VERSION
+        - roflcoopter/amd64-gpac:$GPAC_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-gpac:$GPAC_VERSION-$UBUNTU_VERSION
 
   amd64-wheels:
     build:
@@ -153,7 +153,7 @@ services:
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
         UBUNTU_VERSION: "$UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/amd64-gpac:${GPAC_VERSION}
+        GPAC_IMAGE: roflcoopter/amd64-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/amd64-viseron:dev
@@ -245,8 +245,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         DLIB_VERSION: "$DLIB_VERSION"
       cache_from:
-        - roflcoopter/amd64-cuda-dlib:$DLIB_VERSION
-    image: roflcoopter/amd64-cuda-dlib:$DLIB_VERSION
+        - roflcoopter/amd64-cuda-dlib:$DLIB_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-dlib:$DLIB_VERSION-$UBUNTU_VERSION
 
   amd64-cuda-darknet:
     build:
@@ -312,7 +312,7 @@ services:
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
         UBUNTU_VERSION: "$UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/amd64-gpac:${GPAC_VERSION}
+        GPAC_IMAGE: roflcoopter/amd64-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/amd64-cuda-viseron:dev
@@ -382,8 +382,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         GPAC_VERSION: "$GPAC_VERSION"
       cache_from:
-        - roflcoopter/rpi3-gpac:$GPAC_VERSION
-    image: roflcoopter/rpi3-gpac:$GPAC_VERSION
+        - roflcoopter/rpi3-gpac:$GPAC_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-gpac:$GPAC_VERSION-$UBUNTU_VERSION
 
   rpi3-wheels:
     build:
@@ -425,7 +425,7 @@ services:
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
         UBUNTU_VERSION: "$UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/rpi3-gpac:${GPAC_VERSION}
+        GPAC_IMAGE: roflcoopter/rpi3-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/rpi3-viseron:dev
@@ -476,8 +476,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         DLIB_VERSION: "$DLIB_VERSION"
       cache_from:
-        - roflcoopter/aarch64-dlib:$DLIB_VERSION
-    image: roflcoopter/aarch64-dlib:$DLIB_VERSION
+        - roflcoopter/aarch64-dlib:$DLIB_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-dlib:$DLIB_VERSION-$UBUNTU_VERSION
 
   aarch64-hailo:
     build:
@@ -488,8 +488,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         HAILO_VERSION: "$HAILO_VERSION"
       cache_from:
-        - roflcoopter/aarch64-hailo:$HAILO_VERSION
-    image: roflcoopter/aarch64-hailo:$HAILO_VERSION
+        - roflcoopter/aarch64-hailo:$HAILO_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-hailo:$HAILO_VERSION-$UBUNTU_VERSION
 
   aarch64-gpac:
     build:
@@ -500,8 +500,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         GPAC_VERSION: "$GPAC_VERSION"
       cache_from:
-        - roflcoopter/aarch64-gpac:$GPAC_VERSION
-    image: roflcoopter/aarch64-gpac:$GPAC_VERSION
+        - roflcoopter/aarch64-gpac:$GPAC_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-gpac:$GPAC_VERSION-$UBUNTU_VERSION
 
   aarch64-wheels:
     build:
@@ -542,7 +542,7 @@ services:
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
         UBUNTU_VERSION: "$UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}
+        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/aarch64-viseron:dev
@@ -587,8 +587,8 @@ services:
         JETPACK_VERSION: "$JETPACK_VERSION_MAJOR.$JETPACK_VERSION_MINOR.$JETPACK_VERSION_PATCH"
         FFMPEG_VERSION: "$JETSON_NANO_FFMPEG_VERSION"
       cache_from:
-        - roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION
-    image: roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION
+        - roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-opencvpartone:
     build:
@@ -633,8 +633,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         DLIB_VERSION: "$DLIB_VERSION"
       cache_from:
-        - roflcoopter/jetson-nano-dlib:$DLIB_VERSION
-    image: roflcoopter/jetson-nano-dlib:$DLIB_VERSION
+        - roflcoopter/jetson-nano-dlib:$DLIB_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-dlib:$DLIB_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-darknet:
     build:
@@ -651,8 +651,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         DARKNET_COMMIT: "$DARKNET_COMMIT"
       cache_from:
-        - roflcoopter/jetson-nano-darknet:$DARKNET_COMMIT
-    image: roflcoopter/jetson-nano-darknet:$DARKNET_COMMIT
+        - roflcoopter/jetson-nano-darknet:$DARKNET_COMMIT-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-darknet:$DARKNET_COMMIT-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-wheels:
     build:
@@ -697,9 +697,9 @@ services:
         WHEELS_VERSION: "$WHEELS_VERSION"
         S6_OVERLAY_ARCH: aarch64
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
-        UBUNTU_VERSION: "$UBUNTU_VERSION"
+        UBUNTU_VERSION: "$JETSON_NANO_UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}
+        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}-$JETSON_NANO_UBUNTU_VERSION
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/jetson-nano-viseron:dev
