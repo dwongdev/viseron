@@ -257,12 +257,13 @@ services:
         OPENCV_VERSION: "$OPENCV_VERSION"
         OPENVINO_VERSION: "$OPENVINO_VERSION"
         CUDA_VERSION: "$CUDA_VERSION"
+        UBUNTU_VERSION: "$UBUNTU_VERSION"
         UBUNTU_VERSION_NUMBER: "$UBUNTU_VERSION_NUMBER"
         MAKEFLAGS: "$MAKEFLAGS"
         DARKNET_COMMIT: "$DARKNET_COMMIT"
       cache_from:
-        - roflcoopter/amd64-cuda-darknet:$DARKNET_COMMIT
-    image: roflcoopter/amd64-cuda-darknet:$DARKNET_COMMIT
+        - roflcoopter/amd64-cuda-darknet:$DARKNET_COMMIT-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-darknet:$DARKNET_COMMIT-$UBUNTU_VERSION
 
   amd64-cuda-wheels:
     build:
