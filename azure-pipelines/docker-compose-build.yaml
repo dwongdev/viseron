@@ -136,8 +136,8 @@ services:
       context: ..
       dockerfile: ./docker/amd64/Dockerfile.base
       cache_from:
-        - roflcoopter/amd64-base:$BASE_VERSION
-    image: roflcoopter/amd64-base:$BASE_VERSION
+        - roflcoopter/amd64-base:$BASE_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-base:$BASE_VERSION-$UBUNTU_VERSION
 
   amd64-viseron:
     build:
@@ -283,6 +283,7 @@ services:
       dockerfile: ./docker/amd64-cuda/Dockerfile.base
       args:
         CUDA_VERSION: "$CUDA_VERSION"
+        UBUNTU_VERSION: "$UBUNTU_VERSION"
         UBUNTU_VERSION_NUMBER: "$UBUNTU_VERSION_NUMBER"
         DARKNET_COMMIT: "$DARKNET_COMMIT"
         OPENVINO_VERSION: "$OPENVINO_VERSION"
@@ -293,8 +294,8 @@ services:
         OPENCL_SHA256_FILENAME: "$OPENCL_SHA256_FILENAME"
         HAILO_VERSION: "$HAILO_VERSION"
       cache_from:
-        - roflcoopter/amd64-cuda-base:$BASE_VERSION
-    image: roflcoopter/amd64-cuda-base:$BASE_VERSION
+        - roflcoopter/amd64-cuda-base:$BASE_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-base:$BASE_VERSION-$UBUNTU_VERSION
 
   amd64-cuda-viseron:
     build:
@@ -406,8 +407,8 @@ services:
         UBUNTU_VERSION: "$UBUNTU_VERSION"
         FFMPEG_VERSION: "$FFMPEG_VERSION"
       cache_from:
-        - roflcoopter/rpi3-base:$BASE_VERSION
-    image: roflcoopter/rpi3-base:$BASE_VERSION
+        - roflcoopter/rpi3-base:$BASE_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-base:$BASE_VERSION-$UBUNTU_VERSION
 
   rpi3-viseron:
     build:
@@ -523,8 +524,8 @@ services:
         FFMPEG_VERSION: "$FFMPEG_VERSION"
         HAILO_VERSION: "$HAILO_VERSION"
       cache_from:
-        - roflcoopter/aarch64-base:$BASE_VERSION
-    image: roflcoopter/aarch64-base:$BASE_VERSION
+        - roflcoopter/aarch64-base:$BASE_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-base:$BASE_VERSION-$UBUNTU_VERSION
 
   aarch64-viseron:
     build:
@@ -680,8 +681,8 @@ services:
         SOC: t210
         JETSON_NANO_FFMPEG_APT_VERSION: $JETSON_NANO_FFMPEG_APT_VERSION
       cache_from:
-        - roflcoopter/jetson-nano-base:$BASE_VERSION
-    image: roflcoopter/jetson-nano-base:$BASE_VERSION
+        - roflcoopter/jetson-nano-base:$BASE_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-base:$BASE_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-viseron:
     build:
