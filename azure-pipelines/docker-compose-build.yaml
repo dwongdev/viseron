@@ -118,8 +118,8 @@ services:
         EXTRA_PIP_ARGS: --extra-index-url https://download.pytorch.org/whl/cpu
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/amd64-wheels:$WHEELS_VERSION
-    image: roflcoopter/amd64-wheels:$WHEELS_VERSION
+        - roflcoopter/amd64-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
 
   amd64-base:
     build:
@@ -274,8 +274,8 @@ services:
         DLIB_VERSION: "$DLIB_VERSION"
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/amd64-cuda-wheels:$WHEELS_VERSION
-    image: roflcoopter/amd64-cuda-wheels:$WHEELS_VERSION
+        - roflcoopter/amd64-cuda-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/amd64-cuda-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
 
   amd64-cuda-base:
     build:
@@ -395,8 +395,8 @@ services:
         CMAKE_VERSION: "$CMAKE_VERSION"
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/rpi3-wheels:$WHEELS_VERSION
-    image: roflcoopter/rpi3-wheels:$WHEELS_VERSION
+        - roflcoopter/rpi3-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
 
   rpi3-base:
     build:
@@ -511,8 +511,8 @@ services:
         DLIB_VERSION: "$DLIB_VERSION"
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/aarch64-wheels:$WHEELS_VERSION
-    image: roflcoopter/aarch64-wheels:$WHEELS_VERSION
+        - roflcoopter/aarch64-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/aarch64-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
 
   aarch64-base:
     build:
@@ -664,8 +664,8 @@ services:
         ARCH: jetson-nano
         OPENCV_VERSION: "$OPENCV_VERSION"
       cache_from:
-        - roflcoopter/jetson-nano-wheels:$WHEELS_VERSION
-    image: roflcoopter/jetson-nano-wheels:$WHEELS_VERSION
+        - roflcoopter/jetson-nano-wheels:$WHEELS_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-wheels:$WHEELS_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
   jetson-nano-base:
     build:
