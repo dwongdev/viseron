@@ -18,7 +18,7 @@ env:
 jobs:
   prepare-python-venv:
     name: Prepare Python venv
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       python-venv-cache-key: ${{ steps.python-venv-cache-key.outputs.key }}
     steps:
@@ -59,7 +59,7 @@ jobs:
 
   prepare-pre-commit:
     name: Prepare pre-commit
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prepare-python-venv
     outputs:
       pre-commit-cache-key: ${{ steps.pre-commit-cache-key.outputs.key }}
@@ -104,7 +104,7 @@ jobs:
 
   run-codespell:
     name: Run codespell
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -144,7 +144,7 @@ jobs:
 
   run-mypy:
     name: Run mypy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -185,7 +185,7 @@ jobs:
 
   run-pylint:
     name: Run pylint
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -230,7 +230,7 @@ jobs:
 
   run-flake8:
     name: Run flake8
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -270,7 +270,7 @@ jobs:
 
   run-pyupgrade:
     name: Run pyupgrade
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -311,7 +311,7 @@ jobs:
   # Run ruff, but dont fail yet since we are in the process of migrating
   run-ruff:
     name: Run ruff
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -346,7 +346,7 @@ jobs:
 
   run-pytest:
     name: Run pytest
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prepare-python-venv
     steps:
       - name: Check out code from GitHub
@@ -406,7 +406,7 @@ jobs:
 
   run-generated-docs:
     name: Check generated docs
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -452,7 +452,12 @@ jobs:
             echo "Failed to determine HAILO_VERSION" >&2
             exit 1
           fi
-          IMAGE_NAME="roflcoopter/amd64-hailo:${HAILO_VERSION}"
+          UBUNTU_VERSION=$(grep '^UBUNTU_VERSION=' azure-pipelines/.env | cut -d'"' -f2)
+          if [ -z "$UBUNTU_VERSION" ]; then
+            echo "Failed to determine UBUNTU_VERSION" >&2
+            exit 1
+          fi
+          IMAGE_NAME="roflcoopter/amd64-hailo:${HAILO_VERSION}-${UBUNTU_VERSION}"
           echo "Pulling $IMAGE_NAME"
           docker pull $IMAGE_NAME
           CID=$(docker create "$IMAGE_NAME" bash)
