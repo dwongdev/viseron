@@ -354,8 +354,8 @@ services:
         DLIB_VERSION: "$DLIB_VERSION"
         CMAKE_VERSION: "$CMAKE_VERSION"
       cache_from:
-        - roflcoopter/rpi3-dlib:$DLIB_VERSION
-    image: roflcoopter/rpi3-dlib:$DLIB_VERSION
+        - roflcoopter/rpi3-dlib:$DLIB_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-dlib:$DLIB_VERSION-$UBUNTU_VERSION
 
   # Sklearn does not have a prebuilt wheel for armv7l, and it takes forever to
   # build from source. So we build it once and use it as a base for the other images
@@ -370,8 +370,8 @@ services:
         SKLEARN_VERSION: "$SKLEARN_VERSION"
         MAKEFLAGS: "$MAKEFLAGS"
       cache_from:
-        - roflcoopter/rpi3-sklearn:$SKLEARN_VERSION
-    image: roflcoopter/rpi3-sklearn:$SKLEARN_VERSION
+        - roflcoopter/rpi3-sklearn:$SKLEARN_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-sklearn:$SKLEARN_VERSION-$UBUNTU_VERSION
 
   rpi3-gpac:
     build:
@@ -391,7 +391,7 @@ services:
       dockerfile: ./docker/Dockerfile.wheels
       args:
         ARCH: rpi3
-        BUILD_FROM: roflcoopter/rpi3-sklearn:$SKLEARN_VERSION
+        BUILD_FROM: roflcoopter/rpi3-sklearn:$SKLEARN_VERSION-$UBUNTU_VERSION
         DLIB_VERSION: "$DLIB_VERSION"
         EXTRA_PIP_ARGS: --extra-index-url https://www.piwheels.org/simple
         CMAKE_VERSION: "$CMAKE_VERSION"
@@ -440,8 +440,8 @@ services:
         MAKEFLAGS: "$MAKEFLAGS"
         CMAKE_VERSION: "$CMAKE_VERSION"
       cache_from:
-        - roflcoopter/rpi3-cmake:$CMAKE_VERSION
-    image: roflcoopter/rpi3-cmake:$CMAKE_VERSION
+        - roflcoopter/rpi3-cmake:$CMAKE_VERSION-$UBUNTU_VERSION
+    image: roflcoopter/rpi3-cmake:$CMAKE_VERSION-$UBUNTU_VERSION
 
   ################ aarch64 #######################################
   aarch64-ffmpeg:
