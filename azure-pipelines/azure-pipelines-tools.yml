@@ -76,7 +76,12 @@ jobs:
             echo "Failed to determine HAILO_VERSION" >&2
             exit 1
           fi
-          IMAGE_NAME="roflcoopter/${ARCH}-hailo:${HAILO_VERSION}"
+          UBUNTU_VERSION=$(grep '^UBUNTU_VERSION=' azure-pipelines/.env | cut -d'"' -f2)
+          if [ -z "$UBUNTU_VERSION" ]; then
+            echo "Failed to determine UBUNTU_VERSION" >&2
+            exit 1
+          fi
+          IMAGE_NAME="roflcoopter/${ARCH}-hailo:${HAILO_VERSION}-${UBUNTU_VERSION}"
           echo "Pulling $IMAGE_NAME"
           docker pull $IMAGE_NAME
           CID=$(docker create "$IMAGE_NAME" bash)
