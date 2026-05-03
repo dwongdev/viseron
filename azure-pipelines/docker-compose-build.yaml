@@ -549,6 +549,18 @@ services:
     image: roflcoopter/aarch64-viseron:dev
 
   ################ Jetson Nano #######################################
+  jetson-nano-cmake:
+    build:
+      context: ..
+      dockerfile: ./docker/jetson-nano/Dockerfile.cmake
+      args:
+        UBUNTU_VERSION: "$JETSON_NANO_UBUNTU_VERSION"
+        MAKEFLAGS: "$MAKEFLAGS"
+        CMAKE_VERSION: "$CMAKE_VERSION"
+      cache_from:
+        - roflcoopter/jetson-nano-cmake:$CMAKE_VERSION-$JETSON_NANO_UBUNTU_VERSION
+    image: roflcoopter/jetson-nano-cmake:$CMAKE_VERSION-$JETSON_NANO_UBUNTU_VERSION
+
   jetson-nano-python:
     build:
       context: ..
@@ -603,6 +615,7 @@ services:
         PYTHON_VERSION: "$PYTHON_VERSION"
         MAKEFLAGS: "-j7"
         OPENCV_VERSION: "$OPENCV_VERSION"
+        CMAKE_VERSION: "$CMAKE_VERSION"
       cache_from:
         - roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
     image: roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION

@@ -1,14 +1,19 @@
 ARG PYTHON_VERSION
 ARG UBUNTU_VERSION
+ARG CMAKE_VERSION
 ARG JETPACK_VERSION
 FROM roflcoopter/jetson-nano-python:${PYTHON_VERSION} as python
 FROM balenalib/jetson-nano-ubuntu:${UBUNTU_VERSION}-build as qemu
+FROM roflcoopter/jetson-nano-cmake:${CMAKE_VERSION}-${UBUNTU_VERSION} as cmake
 FROM nvcr.io/nvidia/l4t-base:r${JETPACK_VERSION} as build
 
 COPY --from=qemu /usr/bin/qemu-aarch64-static /usr/bin/qemu-aarch64-static
 COPY --from=qemu /usr/bin/cross-build-start /bin/cross-build-start
 COPY --from=qemu /usr/bin/cross-build-end /bin/cross-build-end
 COPY --from=qemu /usr/bin/resin-xbuild /usr/bin/resin-xbuild
+
+COPY --from=cmake /usr/custom_cmake/bin /usr/custom_cmake/bin/
+COPY --from=cmake /usr/custom_cmake/share /usr/custom_cmake/share/
 
 COPY --from=python /usr/local /usr/local/
 RUN \
@@ -28,6 +33,7 @@ ENV \
   DEBIAN_FRONTEND=noninteractive \
   PKG_CONFIG_PATH="/opt/opencv/share/pkgconfig:/opt/opencv/lib/pkgconfig:/opt/opencv/lib64/pkgconfig" \
   PREFIX=/opt/opencv \
+  PATH=/usr/custom_cmake/bin:$PATH \
   # Jetson Nano uses compute capability 5.3
   CUDA_ARCH_BIN="53" \
   CUDA_ARCH_PTX="70"
@@ -114,8 +120,8 @@ RUN \
   -D BUILD_PERF_TESTS=OFF \
   -D BUILD_opencv_python2=OFF \
   -D BUILD_opencv_python3=ON \
-  -D PYTHON3_INCLUDE_DIR=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")  \
-  -D PYTHON3_LIBRARY=$(python3 -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))") \
+  -D PYTHON3_INCLUDE_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_path('include'))")  \
+  -D PYTHON3_LIBRARY=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))") \
   -D CMAKE_INSTALL_PREFIX=${PREFIX} \
   -D INSTALL_PYTHON_EXAMPLES=OFF \
   -D INSTALL_C_EXAMPLES=OFF \
