@@ -602,29 +602,17 @@ services:
         - roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION-$JETSON_NANO_UBUNTU_VERSION
     image: roflcoopter/jetson-nano-ffmpeg:$JETSON_NANO_FFMPEG_VERSION-$JETSON_NANO_UBUNTU_VERSION
 
-  jetson-nano-opencvpartone:
-    build:
-      context: ..
-      dockerfile: ./docker/jetson-nano/Dockerfile.opencv.part1
-      args:
-        JETPACK_VERSION: "$JETPACK_VERSION_MAJOR.$JETPACK_VERSION_MINOR.$JETPACK_VERSION_PATCH"
-        JETPACK_VERSION_MAJOR: $JETPACK_VERSION_MAJOR
-        JETPACK_VERSION_MINOR: $JETPACK_VERSION_MINOR
-        SOC: t210
-        UBUNTU_VERSION: $JETSON_NANO_UBUNTU_VERSION
-        PYTHON_VERSION: "$PYTHON_VERSION"
-        MAKEFLAGS: "-j7"
-        OPENCV_VERSION: "$OPENCV_VERSION"
-        CMAKE_VERSION: "$CMAKE_VERSION"
-      cache_from:
-        - roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
-    image: roflcoopter/jetson-nano-opencvpartone:$OPENCV_VERSION-$JETSON_NANO_UBUNTU_VERSION
-
   jetson-nano-opencv:
     build:
       context: ..
       dockerfile: ./docker/jetson-nano/Dockerfile.opencv
       args:
+        JETPACK_VERSION: "$JETPACK_VERSION_MAJOR.$JETPACK_VERSION_MINOR.$JETPACK_VERSION_PATCH"
+        JETPACK_VERSION_MAJOR: $JETPACK_VERSION_MAJOR
+        JETPACK_VERSION_MINOR: $JETPACK_VERSION_MINOR
+        SOC: t210
+        PYTHON_VERSION: "$PYTHON_VERSION"
+        CMAKE_VERSION: "$CMAKE_VERSION"
         UBUNTU_VERSION: $JETSON_NANO_UBUNTU_VERSION
         MAKEFLAGS: "-j7"
         OPENCV_VERSION: "$OPENCV_VERSION"
