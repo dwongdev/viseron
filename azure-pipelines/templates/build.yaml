@@ -20,7 +20,7 @@ parameters:
     default: true
   - name: timeoutJob
     type: number
-    default: 360
+    default: 1440
   - name: release
     type: boolean
     default: false
