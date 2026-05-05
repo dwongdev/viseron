@@ -632,6 +632,7 @@ services:
         JETPACK_VERSION_MINOR: $JETPACK_VERSION_MINOR
         SOC: t210
         MAKEFLAGS: "$MAKEFLAGS"
+        CMAKE_VERSION: "$CMAKE_VERSION"
         DLIB_VERSION: "$DLIB_VERSION"
       cache_from:
         - roflcoopter/jetson-nano-dlib:$DLIB_VERSION-$JETSON_NANO_UBUNTU_VERSION
