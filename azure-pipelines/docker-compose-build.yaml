@@ -514,6 +514,7 @@ services:
         ARCH: aarch64
         BUILD_FROM: balenalib/aarch64-ubuntu:$UBUNTU_VERSION-build
         DLIB_VERSION: "$DLIB_VERSION"
+        EXTRA_PIP_ARGS: --extra-index-url https://download.pytorch.org/whl/cpu
         OPENCV_VERSION: "$OPENCV_VERSION"
         UBUNTU_VERSION: "$UBUNTU_VERSION"
       cache_from:
