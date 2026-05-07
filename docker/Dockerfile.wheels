@@ -36,6 +36,8 @@ RUN apt-get -yqq update && apt-get install -yq --no-install-recommends \
   python3-wheel \
   libgirepository1.0-dev\
   libcairo2-dev \
+  libgfortran5 \
+  libopenblas0-pthread \
   # Install Python 3.9 if it doesn't exist
   && if [ ! -f /usr/local/bin/python3.9 ]; then \
   add-apt-repository ppa:deadsnakes/ppa -y && \
