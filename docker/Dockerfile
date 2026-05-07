@@ -131,7 +131,7 @@ RUN \
   python3.9 \
   python3.9-distutils \
   # Get pip
-  && curl -s https://bootstrap.pypa.io/get-pip.py | python3.9 - --ignore-installed ; \
+  && curl -s https://bootstrap.pypa.io/pip/3.9/get-pip.py | python3.9 - --ignore-installed ; \
   fi \
   \
   # Install Coral Edge TPU
