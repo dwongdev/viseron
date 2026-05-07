@@ -707,7 +707,7 @@ services:
         S6_OVERLAY_VERSION: "$S6_OVERLAY_VERSION"
         UBUNTU_VERSION: "$JETSON_NANO_UBUNTU_VERSION"
         NODE_VERSION: "$NODE_VERSION"
-        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}-$JETSON_NANO_UBUNTU_VERSION
+        GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
       cache_from:
         - roflcoopter/jetson-nano-viseron:dev
