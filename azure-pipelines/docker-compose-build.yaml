@@ -709,6 +709,7 @@ services:
         NODE_VERSION: "$NODE_VERSION"
         GPAC_IMAGE: roflcoopter/aarch64-gpac:${GPAC_VERSION}-${UBUNTU_VERSION}
         GO2RTC_VERSION: "$GO2RTC_VERSION"
+        OPENBLAS_APT_PACKAGE: "libopenblas-base"
       cache_from:
         - roflcoopter/jetson-nano-viseron:dev
     image: roflcoopter/jetson-nano-viseron:dev

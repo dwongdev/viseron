@@ -66,6 +66,7 @@ COPY --from=wheels /wheels-3.9 /wheels-3.9
 ARG S6_OVERLAY_ARCH
 ARG S6_OVERLAY_VERSION
 ARG EXTRA_APT_PACKAGES
+ARG OPENBLAS_APT_PACKAGE="libopenblas0-pthread"
 
 ENV \
   VISERON_CONFIG_DIR=/config \
@@ -96,7 +97,8 @@ RUN \
   # OpenCV and FFmpeg Dependencies
   libgomp1 \
   # dlib Dependencies
-  libopenblas0-pthread \
+  # OpenBLAS provided via build-arg since Jetson Nano runs on older Ubuntu version
+  "${OPENBLAS_APT_PACKAGE}" \
   # PostgreSQL
   postgresql \
   postgresql-contrib \
