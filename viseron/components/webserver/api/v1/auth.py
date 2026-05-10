@@ -62,6 +62,7 @@ class AuthAPIHandler(BaseAPIHandler):
             "path_pattern": r"/auth/login",
             "supported_methods": ["POST"],
             "method": "auth_login",
+            "rate_limit": "login",
             "json_body_schema": vol.Schema(
                 {
                     vol.Required("username"): str,
@@ -81,6 +82,7 @@ class AuthAPIHandler(BaseAPIHandler):
             "path_pattern": r"/auth/token",
             "supported_methods": ["POST"],
             "method": "auth_token",
+            "rate_limit": "token",
             "json_body_schema": vol.Schema(
                 {
                     vol.Required("grant_type", msg="Invalid grant_type"): vol.All(
@@ -226,6 +228,8 @@ class AuthAPIHandler(BaseAPIHandler):
                 HTTPStatus.UNAUTHORIZED, reason="Invalid username or password"
             )
             return
+
+        self.reset_rate_limit("login")
 
         refresh_token = await self.run_in_executor(
             self.auth.generate_refresh_token,
