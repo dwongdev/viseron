@@ -153,8 +153,8 @@ RUN \
   curl -sLO https://downloads.xiph.org/releases/theora/libtheora-${THEORA_VERSION}.tar.gz && \
   echo ${THEORA_SHA256SUM} | sha256sum --check && \
   tar -zx --strip-components=1 -f libtheora-${THEORA_VERSION}.tar.gz && \
-  curl -SLo config.guess "http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD" && \
-  curl -SLo config.sub "http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD" && \
+  curl -fsSLo config.guess "https://git.savannah.gnu.org/cgit/config.git/plain/config.guess" && \
+  curl -fsSLo config.sub "https://git.savannah.gnu.org/cgit/config.git/plain/config.sub" && \
   ./configure --prefix="${PREFIX}" --with-ogg="${PREFIX}" --enable-static --disable-shared --disable-examples && \
   make && \
   make install && \
