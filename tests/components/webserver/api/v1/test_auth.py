@@ -3,6 +3,7 @@
 This is sort of a combination of unit and integration tests.
 Mocking is only done when it is strictly necessary.
 """
+
 import json
 import os
 from pathlib import Path
@@ -405,21 +406,25 @@ class TestAuthAPIHandler(TestAppBaseAuth):
 
     def test_auth_delete_last_admin_user(self):
         """Test deleting the last admin user."""
-        with patch(
-            "viseron.components.webserver.auth.Auth.delete_user",
-            side_effect=LastAdminUserError("Cannot delete the last admin user"),
-        ), patch(
-            "viseron.components.webserver.request_handler.ViseronRequestHandler.current_user",  # pylint: disable=line-too-long
-            new_callable=PropertyMock,
-            return_value=User(
-                name="Test",
-                username="test",
-                password="test",
-                role=Role.ADMIN,
+        with (
+            patch(
+                "viseron.components.webserver.auth.Auth.delete_user",
+                side_effect=LastAdminUserError("Cannot delete the last admin user"),
             ),
-        ), patch(
-            "viseron.components.webserver.request_handler.ViseronRequestHandler.validate_access_token",  # pylint: disable=line-too-long
-            return_value=True,
+            patch(
+                "viseron.components.webserver.request_handler.ViseronRequestHandler.current_user",  # pylint: disable=line-too-long
+                new_callable=PropertyMock,
+                return_value=User(
+                    name="Test",
+                    username="test",
+                    password="test",
+                    role=Role.ADMIN,
+                ),
+            ),
+            patch(
+                "viseron.components.webserver.request_handler.ViseronRequestHandler.validate_access_token",  # pylint: disable=line-too-long
+                return_value=True,
+            ),
         ):
             response = self.fetch_with_auth(
                 f"/api/v1/auth/user/{USER_ID}",
@@ -456,18 +461,21 @@ class TestAuthAPIHandler(TestAppBaseAuth):
 
     def test_auth_admin_change_password_not_admin(self):
         """Test changing a user's password when not an admin."""
-        with patch(
-            "viseron.components.webserver.request_handler.ViseronRequestHandler.current_user",  # pylint: disable=line-too-long
-            new_callable=PropertyMock,
-            return_value=User(
-                name="Test",
-                username="test",
-                password="test",
-                role=Role.READ,
+        with (
+            patch(
+                "viseron.components.webserver.request_handler.ViseronRequestHandler.current_user",  # pylint: disable=line-too-long
+                new_callable=PropertyMock,
+                return_value=User(
+                    name="Test",
+                    username="test",
+                    password="test",
+                    role=Role.READ,
+                ),
             ),
-        ), patch(
-            "viseron.components.webserver.request_handler.ViseronRequestHandler.validate_access_token",  # pylint: disable=line-too-long
-            return_value=True,
+            patch(
+                "viseron.components.webserver.request_handler.ViseronRequestHandler.validate_access_token",  # pylint: disable=line-too-long
+                return_value=True,
+            ),
         ):
             response = self.fetch_with_auth(
                 f"/api/v1/auth/user/{USER_ID}/admin_change_password",
