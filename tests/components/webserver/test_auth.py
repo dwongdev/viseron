@@ -1,16 +1,21 @@
 """Auth tests."""
+
 from __future__ import annotations
 
 import os
+import time
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from filelock import FileLock
 
 from viseron.components.webserver.auth import (
+    MAX_ACCESS_TOKENS_PER_USER,
+    AccessTokenLimitExceededError,
+    AccessTokenNotFoundError,
     Auth,
-    AuthenticationFailed,
+    AuthenticationFailedError,
     InvalidRoleError,
     LastAdminUserError,
     Role,
@@ -19,28 +24,29 @@ from viseron.components.webserver.auth import (
     token_response,
 )
 
+if TYPE_CHECKING:
+    from viseron import Viseron
+
+    from tests.conftest import MockViseron
+
 WEBSERVER_CONFIG: dict[str, Any] = {"auth": {"session_expiry": None}}
 
 
 class TestAuth:
     """Auth tests."""
 
-    def setup_method(self, vis):
+    def setup_method(self, vis: Viseron):
         """Set up tests."""
         self.auth = Auth(vis, WEBSERVER_CONFIG)
-        self.auth_store_lock = FileLock(
-            f"{self.auth._auth_store.path}.lock"  # pylint: disable=protected-access
-        )
+        self.auth_store_lock = FileLock(f"{self.auth._auth_store.path}.lock")
         self.onboarding_lock = FileLock(f"{self.auth.onboarding_path()}.lock")
         self.auth_store_lock.acquire()
         self.onboarding_lock.acquire()
 
     def teardown_method(self):
         """Teardown tests."""
-        if os.path.exists(
-            self.auth._auth_store.path  # pylint: disable=protected-access
-        ):
-            os.remove(self.auth._auth_store.path)  # pylint: disable=protected-access
+        if os.path.exists(self.auth._auth_store.path):
+            os.remove(self.auth._auth_store.path)
         if os.path.exists(self.auth.onboarding_path()):
             os.remove(self.auth.onboarding_path())
         self.auth_store_lock.release()
@@ -56,12 +62,7 @@ class TestAuth:
         assert user.password != "test"
 
         assert user.id in self.auth.users
-        assert (
-            os.path.exists(
-                self.auth._auth_store.path  # pylint: disable=protected-access
-            )
-            is True
-        )
+        assert os.path.exists(self.auth._auth_store.path) is True
 
         user2 = self.auth.add_user("Test2", "Test2", "test", Role.WRITE)
         assert user2.role == Role.WRITE
@@ -103,13 +104,13 @@ class TestAuth:
     def test_validate_user_invalid_password(self):
         """Test validating user with invalid password."""
         self.auth.add_user("Test", "test", "test", Role.ADMIN)
-        with pytest.raises(AuthenticationFailed):
+        with pytest.raises(AuthenticationFailedError):
             self.auth.validate_user("test", "invalid")
 
     def test_validate_user_missing_user(self):
         """Test validating user with missing username."""
         self.auth.add_user("Test", "test", "test", Role.ADMIN)
-        with pytest.raises(AuthenticationFailed):
+        with pytest.raises(AuthenticationFailedError):
             self.auth.validate_user("missing", "invalid")
 
     def test_get_user(self):
@@ -165,6 +166,63 @@ class TestAuth:
         """Test changing the password of a nonexistent user."""
         with pytest.raises(UserDoesNotExistError):
             self.auth.change_password("nonexistent_id", "new_password")
+
+    def test_change_password_revokes_all_sessions(self):
+        """Changing the password must invalidate all sessions and PATs."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        rt = self.auth.generate_refresh_token(user.id, "client", "normal")
+        _pat, raw = self.auth.create_access_token(user.id, "My PAT")
+
+        assert rt.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is not None
+
+        self.auth.change_password(user.id, "new_password")
+
+        # All credentials for that user are gone.
+        assert rt.id not in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is None
+        assert self.auth.get_access_tokens_for_user(user.id) == []
+
+    def test_change_password_does_not_revoke_other_users(self):
+        """Changing one user's password must not affect another user's tokens."""
+        user_a = self.auth.add_user("A", "a", "a", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        rt_b = self.auth.generate_refresh_token(user_b.id, "client", "normal")
+        _b_pat, b_raw = self.auth.create_access_token(user_b.id, "B PAT")
+
+        self.auth.change_password(user_a.id, "new_password")
+
+        assert rt_b.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(b_raw) is not None
+
+    def test_delete_user_revokes_all_sessions(self):
+        """Deleting a user must invalidate all their sessions and PATs."""
+        # Need an admin to remain so the test user can be deleted.
+        self.auth.add_user("Admin", "admin", "admin", Role.ADMIN)
+        user = self.auth.add_user("Test", "test", "test", Role.WRITE)
+        rt = self.auth.generate_refresh_token(user.id, "client", "normal")
+        _pat, raw = self.auth.create_access_token(user.id, "My PAT")
+
+        self.auth.delete_user(user.id)
+
+        assert user.id not in self.auth.users
+        assert rt.id not in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is None
+
+    def test_delete_user_does_not_revoke_other_users(self):
+        """Deleting one user must not affect another user's tokens."""
+        admin = self.auth.add_user("Admin", "admin", "admin", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        rt_b = self.auth.generate_refresh_token(user_b.id, "client", "normal")
+        _b_pat, b_raw = self.auth.create_access_token(user_b.id, "B PAT")
+
+        # Delete a third user that has no tokens, verify B's are intact.
+        target = self.auth.add_user("Target", "target", "target", Role.WRITE)
+        self.auth.delete_user(target.id)
+
+        assert admin.id in self.auth.users
+        assert rt_b.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(b_raw) is not None
 
     def test_update_user(self):
         """Test updating a user's details."""
@@ -318,7 +376,7 @@ class TestAuth:
         self.auth.refresh_tokens.pop(refresh_token.id)
         assert self.auth.validate_access_token(access_token) is None
 
-    def test_load(self, vis):
+    def test_load(self, vis: MockViseron):
         """Test loading storage."""
         user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
         user2 = self.auth.add_user("Test2", "test2", "test", Role.ADMIN)
@@ -366,7 +424,7 @@ class TestAuth:
                 == self.auth.refresh_tokens[refresh_token.id].created_at
             )
 
-    def test_session_expiry(self, vis):
+    def test_session_expiry(self, vis: MockViseron):
         """Test session expiry."""
         assert self.auth.session_expiry is None
         config = WEBSERVER_CONFIG.copy()
@@ -385,3 +443,169 @@ class TestAuth:
         response = token_response(refresh_token, access_token)
         assert response["header"] == header
         assert response["payload"] == payload
+
+
+class TestAccessToken:
+    """Tests for personal access token (PAT) management."""
+
+    def setup_method(self, vis: Viseron):
+        """Set up tests."""
+        self.auth = Auth(vis, WEBSERVER_CONFIG)
+        self.auth_store_lock = FileLock(f"{self.auth._auth_store.path}.lock")
+        self.onboarding_lock = FileLock(f"{self.auth.onboarding_path()}.lock")
+        self.auth_store_lock.acquire()
+        self.onboarding_lock.acquire()
+
+    def teardown_method(self):
+        """Teardown tests."""
+        if os.path.exists(self.auth._auth_store.path):
+            os.remove(self.auth._auth_store.path)
+        if os.path.exists(self.auth.onboarding_path()):
+            os.remove(self.auth.onboarding_path())
+        self.auth_store_lock.release()
+        self.onboarding_lock.release()
+
+    def test_create_access_token(self):
+        """Token is returned raw once; only its hash is stored."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        pat, raw_token = self.auth.create_access_token(user.id, "My Token")
+
+        assert raw_token.startswith("vpat_")
+        assert pat.id in self.auth.access_tokens
+        # Raw token must NOT be stored
+        assert self.auth.access_tokens[pat.id].token_hash != raw_token
+        # Hash round-trip: validate_access_token_pat must accept the raw token
+        assert self.auth.validate_access_token_pat(raw_token) is not None
+
+    def test_create_access_token_name_validation(self):
+        """Empty or whitespace-only names are rejected."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        with pytest.raises(ValueError, match="cannot be empty"):
+            self.auth.create_access_token(user.id, "")
+        with pytest.raises(ValueError, match="cannot be empty"):
+            self.auth.create_access_token(user.id, "   ")
+
+    def test_create_access_token_name_too_long(self):
+        """Names exceeding 100 characters are rejected."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        with pytest.raises(ValueError, match="cannot exceed 100"):
+            self.auth.create_access_token(user.id, "x" * 101)
+
+    def test_create_access_token_with_expiry(self):
+        """Optional expiry is stored on the token."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+
+        future = time.time() + 3600
+        pat, _raw = self.auth.create_access_token(
+            user.id, "Expiring", expires_at=future
+        )
+        assert pat.expires_at == future
+
+    def test_create_access_token_limit(self):
+        """Creating more than MAX_ACCESS_TOKENS_PER_USER raises an error."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        for i in range(MAX_ACCESS_TOKENS_PER_USER):
+            self.auth.create_access_token(user.id, f"Token {i}")
+        with pytest.raises(AccessTokenLimitExceededError):
+            self.auth.create_access_token(user.id, "One too many")
+
+    def test_get_access_tokens_for_user(self):
+        """Only tokens for the requested user are returned."""
+        user_a = self.auth.add_user("A", "a", "a", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        self.auth.create_access_token(user_a.id, "A token 1")
+        self.auth.create_access_token(user_a.id, "A token 2")
+        self.auth.create_access_token(user_b.id, "B token 1")
+
+        tokens_a = self.auth.get_access_tokens_for_user(user_a.id)
+        tokens_b = self.auth.get_access_tokens_for_user(user_b.id)
+        assert len(tokens_a) == 2
+        assert len(tokens_b) == 1
+
+    def test_delete_access_token(self):
+        """Deleting a token removes it from the store."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        pat, _raw = self.auth.create_access_token(user.id, "To delete")
+        self.auth.delete_access_token(pat.id, user.id)
+        assert pat.id not in self.auth.access_tokens
+
+    def test_delete_access_token_not_found(self):
+        """Deleting a non-existent token raises AccessTokenNotFoundError."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        with pytest.raises(AccessTokenNotFoundError):
+            self.auth.delete_access_token("nonexistent_id", user.id)
+
+    def test_delete_access_token_wrong_user(self):
+        """Deleting another user's token raises AccessTokenNotFoundError."""
+        user_a = self.auth.add_user("A", "a", "a", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        pat, _raw = self.auth.create_access_token(user_a.id, "A token")
+        with pytest.raises(AccessTokenNotFoundError):
+            self.auth.delete_access_token(pat.id, user_b.id)
+
+    def test_validate_access_token_pat(self):
+        """A valid raw token returns the corresponding AccessToken."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        pat, raw_token = self.auth.create_access_token(user.id, "Valid")
+        found = self.auth.validate_access_token_pat(raw_token)
+        assert found is not None
+        assert found.id == pat.id
+
+    def test_validate_access_token_pat_invalid_token(self):
+        """An unrecognised raw token returns None."""
+        self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        assert self.auth.validate_access_token_pat("vpat_notavalidtoken") is None
+
+    def test_validate_access_token_pat_expired(self):
+        """An expired PAT is rejected even if the hash matches."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        past = time.time() - 1
+        _pat, raw_token = self.auth.create_access_token(
+            user.id, "Expired", expires_at=past
+        )
+        assert self.auth.validate_access_token_pat(raw_token) is None
+
+    def test_access_token_load_save_round_trip(self, vis: MockViseron):
+        """Test that PATs survive a save-and-reload cycle."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        _pat, raw_token = self.auth.create_access_token(user.id, "Persistent")
+
+        auth2 = Auth(vis, WEBSERVER_CONFIG)
+        found = auth2.validate_access_token_pat(raw_token)
+        assert found is not None
+
+    def test_update_pat_used(self):
+        """After update_pat_used, last_used_at and last_used_by are set."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        pat, _raw = self.auth.create_access_token(user.id, "Used")
+        assert pat.last_used_at is None
+        self.auth.update_pat_used(pat, "192.168.1.1")
+        assert pat.last_used_at is not None
+        assert pat.last_used_by == "192.168.1.1"  # type: ignore[unreachable]
+
+    def test_revoke_all_for_user(self):
+        """revoke_all_for_user removes all sessions and PATs for the user only."""
+        user_a = self.auth.add_user("A", "a", "a", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+
+        # Give user_a a session and a PAT
+        self.auth.generate_refresh_token(user_a.id, "client", "normal")
+        self.auth.create_access_token(user_a.id, "A PAT")
+
+        # Give user_b a session and a PAT (should survive)
+        rt_b = self.auth.generate_refresh_token(user_b.id, "client", "normal")
+        _b_pat, b_raw = self.auth.create_access_token(user_b.id, "B PAT")
+
+        self.auth.revoke_all_for_user(user_a.id)
+
+        # User A's tokens are gone
+        rts_a = [
+            rt for rt in self.auth.refresh_tokens.values() if rt.user_id == user_a.id
+        ]
+        pats_a = self.auth.get_access_tokens_for_user(user_a.id)
+        assert len(rts_a) == 0
+        assert len(pats_a) == 0
+
+        # User B's tokens are unaffected
+        assert rt_b.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(b_raw) is not None

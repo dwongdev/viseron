@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime
 import enum
+import hashlib
 import hmac
 import logging
 import os
@@ -48,7 +49,7 @@ class InvalidRoleError(ViseronError):
     """Invalid role specified."""
 
 
-class AuthenticationFailed(ViseronError):
+class AuthenticationFailedError(ViseronError):
     """Authentication failed."""
 
 
@@ -62,6 +63,42 @@ class LastAdminUserError(ViseronError):
 
 class InvalidTimezoneError(ViseronError):
     """Invalid timezone specified."""
+
+
+class InvalidDateFormatError(ViseronError):
+    """Invalid date format specified."""
+
+
+class InvalidTimeFormatError(ViseronError):
+    """Invalid time format specified."""
+
+
+class AccessTokenNotFoundError(ViseronError):
+    """Access token not found."""
+
+
+class AccessTokenLimitExceededError(ViseronError):
+    """Access token limit exceeded."""
+
+
+MAX_ACCESS_TOKENS_PER_USER = 20
+MAX_TOKEN_NAME_LENGTH = 100
+PAT_LAST_USED_SAVE_INTERVAL = datetime.timedelta(minutes=1)
+
+
+VALID_DATE_FORMATS = [
+    "YYYY-MM-DD",
+    "MM/DD/YYYY",
+    "DD/MM/YYYY",
+    "DD.MM.YYYY",
+    "MM-DD-YYYY",
+    "DD-MM-YYYY",
+]
+
+VALID_TIME_FORMATS = [
+    "12h",
+    "24h",
+]
 
 
 @dataclass
@@ -85,6 +122,35 @@ class RefreshToken:
     used_by: str | None = None
 
 
+@dataclass
+class AccessToken:
+    """Personal access token.
+
+    Used to access the API from third-party clients.
+    Only the SHA-256 hash of the raw token is ever stored.
+    """
+
+    user_id: str
+    name: str
+    token_hash: str
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    created_at: float = field(default_factory=lambda: utcnow().timestamp())
+    expires_at: float | None = None
+    last_used_at: float | None = None
+    last_used_by: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Convert to dict, excluding the token_hash."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at,
+            "expires_at": self.expires_at,
+            "last_used_at": self.last_used_at,
+            "last_used_by": self.last_used_by,
+        }
+
+
 class Role(enum.Enum):
     """Role enum."""
 
@@ -98,11 +164,15 @@ class Preferences:
     """User preferences."""
 
     timezone: str | None = None
+    date_format: str | None = None
+    time_format: str | None = None
 
     def asdict(self) -> dict[str, Any]:
         """Convert preferences to dict."""
         return {
             "timezone": self.timezone,
+            "date_format": self.date_format,
+            "time_format": self.time_format,
         }
 
 
@@ -171,11 +241,13 @@ def token_response(
 class Auth:
     """Users."""
 
-    def __init__(self, vis: Viseron, config) -> None:
+    def __init__(self, vis: Viseron, config: dict[str, Any]) -> None:
         self._vis = vis
         self._config = config
         self._users: dict[str, User] | None = None
         self._refresh_tokens: dict[str, RefreshToken] | None = None
+        self._access_tokens: dict[str, AccessToken] | None = None
+        self._pat_last_used_persisted_at: dict[str, float] = {}
         self._auth_store = Storage(vis, AUTH_STORAGE_KEY)
         self._data_lock = Lock()
         self._user_lock = Lock()
@@ -201,6 +273,16 @@ class Auth:
         return self._refresh_tokens
 
     @property
+    def access_tokens(self) -> dict[str, AccessToken]:
+        """Return personal access tokens."""
+        with self._data_lock:
+            if self._access_tokens is None:
+                LOGGER.debug("Loading access tokens")
+                self._load()
+                assert self._access_tokens is not None  # noqa: S101
+        return self._access_tokens
+
+    @property
     def session_expiry(self) -> datetime.timedelta | None:
         """Return session expiry."""
         if not self._config[CONFIG_AUTH][CONFIG_SESSION_EXPIRY]:
@@ -224,9 +306,7 @@ class Auth:
 
     def onboarding_complete(self) -> bool:
         """Return onboarding status."""
-        if self.users or os.path.exists(self.onboarding_path()):
-            return True
-        return False
+        return bool(self.users or os.path.exists(self.onboarding_path()))
 
     @staticmethod
     def hash_password(password: str) -> str:
@@ -241,8 +321,9 @@ class Auth:
         username: str,
         password: str,
         role: Role,
+        *,
         enabled: bool = True,
-    ):
+    ) -> User:
         """Add user."""
         LOGGER.debug(f"Adding user {username}")
         name = name.strip()
@@ -270,7 +351,7 @@ class Auth:
         name: str,
         username: str,
         password: str,
-    ):
+    ) -> User:
         """Onboard the first user."""
         user = self.add_user(name, username, password, Role.ADMIN)
         Path(self.onboarding_path()).touch()
@@ -289,12 +370,12 @@ class Auth:
 
         if user:
             if not bcrypt.checkpw(password.encode(), base64.b64decode(user.password)):
-                raise AuthenticationFailed
+                raise AuthenticationFailedError
             return user
 
         # Always check a fake password to avoid timing attacks.
         bcrypt.checkpw(b"fakepw", fakepw_hash)
-        raise AuthenticationFailed
+        raise AuthenticationFailedError
 
     def get_user(self, user_id: str) -> User | None:
         """Get user by id."""
@@ -324,6 +405,7 @@ class Auth:
                     raise LastAdminUserError("Cannot delete the last admin user")
 
             LOGGER.debug(f"Deleting user {user_to_delete.username}")
+            self._revoke_all_for_user(user_id)
             del self.users[user_id]
             self.save()
 
@@ -335,6 +417,10 @@ class Auth:
 
             user = self.users[user_id]
             user.password = self.hash_password(new_password)
+            # Forcibly log the user out everywhere on password change. Anyone
+            # who knew the old password (e.g. an attacker the user is trying
+            # to lock out) loses access immediately.
+            self._revoke_all_for_user(user_id)
             LOGGER.debug(f"Password changed for user {user.username}")
             self.save()
 
@@ -354,9 +440,11 @@ class Auth:
             user = self.users[user_id]
 
             # Check if the new username is already taken by another user
-            if username.strip().casefold() != user.username:
-                if self.get_user_by_username(username.strip().casefold()):
-                    raise UserExistsError(f"Username {username} is already taken")
+            if (
+                username.strip().casefold() != user.username
+                and self.get_user_by_username(username.strip().casefold())
+            ):
+                raise UserExistsError(f"Username {username} is already taken")
 
             # Prevent role change of the last admin user
             if user.role == Role.ADMIN and role != Role.ADMIN:
@@ -410,6 +498,16 @@ class Auth:
             if timezone is not None and timezone not in available_timezones():
                 raise InvalidTimezoneError(f"Invalid timezone: {timezone}")
 
+            # Validate date_format if provided
+            date_format = preferences.date_format
+            if date_format is not None and date_format not in VALID_DATE_FORMATS:
+                raise InvalidDateFormatError(f"Invalid date format: {date_format}")
+
+            # Validate time_format if provided
+            time_format = preferences.time_format
+            if time_format is not None and time_format not in VALID_TIME_FORMATS:
+                raise InvalidTimeFormatError(f"Invalid time format: {time_format}")
+
             # Update preferences
             user.preferences = preferences
 
@@ -423,6 +521,7 @@ class Auth:
 
         users: dict[str, User] = {}
         refresh_tokens: dict[str, RefreshToken] = {}
+        access_tokens: dict[str, AccessToken] = {}
 
         for user in data.get("users", {}).values():
             preferences: Preferences | None = None
@@ -461,13 +560,30 @@ class Auth:
                 used_by=refresh_token["used_by"],
             )
 
+        for pat in data.get("access_tokens", {}).values():
+            access_tokens[pat["id"]] = AccessToken(
+                user_id=pat["user_id"],
+                name=pat["name"],
+                token_hash=pat["token_hash"],
+                id=pat["id"],
+                created_at=pat["created_at"],
+                expires_at=pat.get("expires_at"),
+                last_used_at=pat.get("last_used_at"),
+                last_used_by=pat.get("last_used_by"),
+            )
+
         self._users = users
         self._refresh_tokens = refresh_tokens
+        self._access_tokens = access_tokens
 
     def save(self) -> None:
         """Save users to storage."""
         self._auth_store.save(
-            {"users": self.users, "refresh_tokens": self.refresh_tokens}
+            {
+                "users": self.users,
+                "refresh_tokens": self.refresh_tokens,
+                "access_tokens": {t.id: asdict(t) for t in self.access_tokens.values()},
+            }
         )
 
     def generate_refresh_token(
@@ -476,42 +592,44 @@ class Auth:
         client_id: str,
         access_token_type: Literal["normal"],
         access_token_expiration: datetime.timedelta = ACCESS_TOKEN_EXPIRATION,
-    ):
+    ) -> RefreshToken:
         """Generate refresh token."""
-        refresh_token = RefreshToken(
-            user_id=user_id,
-            client_id=client_id,
-            session_expiration=(
-                self.session_expiry
-                if self.session_expiry
-                else datetime.timedelta(days=3650)
-            ),
-            access_token_type=access_token_type,
-            access_token_expiration=access_token_expiration,
-        )
-        self.refresh_tokens[refresh_token.id] = refresh_token
-        self.save()
+        with self._user_lock:
+            refresh_token = RefreshToken(
+                user_id=user_id,
+                client_id=client_id,
+                session_expiration=(
+                    self.session_expiry or datetime.timedelta(days=3650)
+                ),
+                access_token_type=access_token_type,
+                access_token_expiration=access_token_expiration,
+            )
+            self.refresh_tokens[refresh_token.id] = refresh_token
+            self.save()
         return refresh_token
 
     def get_refresh_token(self, refresh_token_id: str) -> RefreshToken | None:
         """Get refresh token."""
-        return self.refresh_tokens.get(refresh_token_id, None)
+        with self._user_lock:
+            return self.refresh_tokens.get(refresh_token_id, None)
 
     def get_refresh_token_from_token(self, token: str) -> RefreshToken | None:
         """Get refresh token from token."""
         found_token = None
 
-        for refresh_token in self.refresh_tokens.values():
-            if hmac.compare_digest(refresh_token.token, token):
-                found_token = refresh_token
+        with self._user_lock:
+            for refresh_token in self.refresh_tokens.values():
+                if hmac.compare_digest(refresh_token.token, token):
+                    found_token = refresh_token
 
         return found_token
 
     def delete_refresh_token(self, refresh_token: RefreshToken) -> None:
         """Delete refresh token."""
-        if refresh_token.id in self.refresh_tokens:
-            del self.refresh_tokens[refresh_token.id]
-            self.save()
+        with self._user_lock:
+            if refresh_token.id in self.refresh_tokens:
+                del self.refresh_tokens[refresh_token.id]
+                self.save()
 
     def validate_refresh_token(self, refresh_token: RefreshToken) -> None:
         """Validate refresh token."""
@@ -519,15 +637,16 @@ class Auth:
     def generate_access_token(
         self,
         refresh_token: RefreshToken,
-        remote_ip,
+        remote_ip: str | None,
         expiry: datetime.timedelta | None = None,
-    ):
+    ) -> str:
         """Generate access token using JWT."""
         self.validate_refresh_token(refresh_token)
-        now = utcnow()
-        refresh_token.used_at = now.timestamp()
-        refresh_token.used_by = remote_ip
-        self.save()
+        with self._user_lock:
+            now = utcnow()
+            refresh_token.used_at = now.timestamp()
+            refresh_token.used_by = remote_ip
+            self.save()
         return jwt.encode(
             {
                 "iss": refresh_token.id,
@@ -540,7 +659,7 @@ class Auth:
             algorithm="HS256",
         )
 
-    def validate_access_token(self, access_token: str):
+    def validate_access_token(self, access_token: str) -> None | RefreshToken:
         """Validate access token."""
         try:
             unverif_claims = jwt.decode(
@@ -549,7 +668,7 @@ class Auth:
         except jwt.InvalidTokenError:
             return None
 
-        refresh_token = self.get_refresh_token(cast(str, unverif_claims.get("iss")))
+        refresh_token = self.get_refresh_token(cast("str", unverif_claims.get("iss")))
         if refresh_token is None:
             jwt_key = ""
             issuer = ""
@@ -572,3 +691,146 @@ class Auth:
             return None
 
         return refresh_token
+
+    def create_access_token(
+        self,
+        user_id: str,
+        name: str,
+        expires_at: float | None = None,
+    ) -> tuple[AccessToken, str]:
+        """Create a new personal access token.
+
+        Returns the AccessToken record and the raw token string.
+        The raw token is only available at creation time and only its hash is stored.
+        """
+        name = name.strip()
+        if not name:
+            raise ValueError("Token name cannot be empty")
+        if len(name) > MAX_TOKEN_NAME_LENGTH:
+            raise ValueError(
+                f"Token name cannot exceed {MAX_TOKEN_NAME_LENGTH} characters"
+            )
+
+        with self._user_lock:
+            user_tokens = [
+                t for t in self.access_tokens.values() if t.user_id == user_id
+            ]
+            if len(user_tokens) >= MAX_ACCESS_TOKENS_PER_USER:
+                raise AccessTokenLimitExceededError(
+                    f"Maximum of {MAX_ACCESS_TOKENS_PER_USER} personal access tokens "
+                    "per user exceeded"
+                )
+
+            raw_token = "vpat_" + secrets.token_hex(64)
+            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+            token = AccessToken(
+                user_id=user_id,
+                name=name,
+                token_hash=token_hash,
+                expires_at=expires_at,
+            )
+            self.access_tokens[token.id] = token
+            self.save()
+
+        return token, raw_token
+
+    def get_access_tokens_for_user(self, user_id: str) -> list[AccessToken]:
+        """Return all personal access tokens for a user."""
+        return [t for t in self.access_tokens.values() if t.user_id == user_id]
+
+    def delete_access_token(self, token_id: str, user_id: str) -> None:
+        """Delete a personal access token.
+
+        Raises AccessTokenNotFoundError if the token does not exist or does not
+        belong to the given user.
+        """
+        with self._user_lock:
+            token = self.access_tokens.get(token_id)
+            if token is None or token.user_id != user_id:
+                raise AccessTokenNotFoundError(f"Access token {token_id} not found")
+            self._pat_last_used_persisted_at.pop(token_id, None)
+            del self.access_tokens[token_id]
+            self.save()
+
+    def validate_access_token_pat(self, raw_token: str) -> AccessToken | None:
+        """Validate a raw personal access token string.
+
+        Computes the SHA-256 hash of the supplied token and performs a
+        timing-safe comparison against every stored hash to prevent timing attacks.
+        Returns the matching AccessToken, or None if not found / expired.
+        """
+        incoming_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        found: AccessToken | None = None
+
+        with self._user_lock:
+            tokens_snapshot = list(self.access_tokens.values())
+
+        for token in tokens_snapshot:
+            if hmac.compare_digest(incoming_hash, token.token_hash):
+                found = token
+
+        if found is None:
+            return None
+
+        # Reject expired tokens
+        if found.expires_at is not None and utcnow().timestamp() > found.expires_at:
+            return None
+
+        return found
+
+    def update_pat_used(self, pat: AccessToken, remote_ip: str) -> None:
+        """Update the last-used metadata for a personal access token."""
+        now = utcnow().timestamp()
+
+        with self._user_lock:
+            stored_pat = self.access_tokens.get(pat.id)
+            if stored_pat is None:
+                return
+
+            last_persisted_at = self._pat_last_used_persisted_at.get(
+                stored_pat.id,
+                stored_pat.last_used_at or 0,
+            )
+            should_save = (
+                stored_pat.last_used_at is None
+                or stored_pat.last_used_by != remote_ip
+                or now - last_persisted_at
+                >= PAT_LAST_USED_SAVE_INTERVAL.total_seconds()
+            )
+
+            stored_pat.last_used_at = now
+            stored_pat.last_used_by = remote_ip
+
+            if should_save:
+                self.save()
+                self._pat_last_used_persisted_at[stored_pat.id] = now
+
+    def _revoke_all_for_user(self, user_id: str) -> None:
+        """Revoke all sessions and PATs for user_id without acquiring the lock.
+
+        Caller MUST hold self._user_lock. The store is not persisted
+        here either, the caller is expected to call self.save() after the
+        rest of its mutations.
+        """
+        rt_ids_to_delete = [
+            rt_id for rt_id, rt in self.refresh_tokens.items() if rt.user_id == user_id
+        ]
+        for rt_id in rt_ids_to_delete:
+            del self.refresh_tokens[rt_id]
+
+        pat_ids_to_delete = [
+            t_id for t_id, t in self.access_tokens.items() if t.user_id == user_id
+        ]
+        for t_id in pat_ids_to_delete:
+            self._pat_last_used_persisted_at.pop(t_id, None)
+            del self.access_tokens[t_id]
+
+    def revoke_all_for_user(self, user_id: str) -> None:
+        """Revoke all sessions (refresh tokens) and personal access tokens for a user.
+
+        This is a destructive, irreversible operation that forces the user to
+        re-authenticate on all devices and invalidates all PATs.
+        """
+        with self._user_lock:
+            self._revoke_all_for_user(user_id)
+            self.save()

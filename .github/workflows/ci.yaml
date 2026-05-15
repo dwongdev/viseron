@@ -9,7 +9,7 @@ on:
 
 env:
   CACHE_VERSION: 1
-  DEFAULT_PYTHON: "3.10"
+  DEFAULT_PYTHON: "3.12"
   PRE_COMMIT_CACHE: ~/.cache/pre-commit
   DOCKER_BUILDKIT: 1
   COMPOSE_DOCKER_CLI_BUILD: 1
@@ -18,7 +18,7 @@ env:
 jobs:
   prepare-python-venv:
     name: Prepare Python venv
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       python-venv-cache-key: ${{ steps.python-venv-cache-key.outputs.key }}
     steps:
@@ -47,7 +47,10 @@ jobs:
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgirepository1.0-dev
+          sudo apt-get install -y --no-install-recommends \
+            libcairo2-dev \
+            libgirepository1.0-dev \
+            pkg-config
           python3 -m venv --system-site-packages venv
       - name: Install requirements into Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
@@ -59,7 +62,7 @@ jobs:
 
   prepare-pre-commit:
     name: Prepare pre-commit
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prepare-python-venv
     outputs:
       pre-commit-cache-key: ${{ steps.pre-commit-cache-key.outputs.key }}
@@ -104,7 +107,7 @@ jobs:
 
   run-codespell:
     name: Run codespell
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -144,7 +147,7 @@ jobs:
 
   run-mypy:
     name: Run mypy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -185,7 +188,7 @@ jobs:
 
   run-pylint:
     name: Run pylint
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -230,7 +233,7 @@ jobs:
 
   run-flake8:
     name: Run flake8
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -270,7 +273,7 @@ jobs:
 
   run-pyupgrade:
     name: Run pyupgrade
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -311,7 +314,7 @@ jobs:
   # Run ruff, but dont fail yet since we are in the process of migrating
   run-ruff:
     name: Run ruff
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -346,7 +349,7 @@ jobs:
 
   run-pytest:
     name: Run pytest
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: prepare-python-venv
     steps:
       - name: Check out code from GitHub
@@ -406,7 +409,7 @@ jobs:
 
   run-generated-docs:
     name: Check generated docs
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [prepare-python-venv, prepare-pre-commit]
     steps:
       - name: Check out code from GitHub
@@ -452,7 +455,12 @@ jobs:
             echo "Failed to determine HAILO_VERSION" >&2
             exit 1
           fi
-          IMAGE_NAME="roflcoopter/amd64-hailo:${HAILO_VERSION}"
+          UBUNTU_VERSION=$(grep '^UBUNTU_VERSION=' azure-pipelines/.env | cut -d'"' -f2)
+          if [ -z "$UBUNTU_VERSION" ]; then
+            echo "Failed to determine UBUNTU_VERSION" >&2
+            exit 1
+          fi
+          IMAGE_NAME="roflcoopter/amd64-hailo:${HAILO_VERSION}-${UBUNTU_VERSION}"
           echo "Pulling $IMAGE_NAME"
           docker pull $IMAGE_NAME
           CID=$(docker create "$IMAGE_NAME" bash)

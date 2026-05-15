@@ -123,6 +123,8 @@ export type StoredTokens = {
 
 export type UserPreferences = {
   timezone?: string | null;
+  date_format?: string | null;
+  time_format?: "12h" | "24h" | null;
 };
 
 export type AuthUserResponse = {
@@ -140,6 +142,21 @@ export type AuthUsersResponse = {
 
 export type AuthLoginResponse = AuthTokenResponse;
 export type OnboardingResponse = AuthTokenResponse;
+
+export type AccessToken = {
+  id: string;
+  name: string;
+  created_at: number;
+  expires_at: number | null;
+  last_used_at: number | null;
+  last_used_by: string | null;
+};
+
+export type AccessTokensResponse = {
+  access_tokens: AccessToken[];
+};
+
+export type AccessTokenCreateResponse = AccessToken & { token: string };
 
 export interface Recording {
   id: number;
@@ -408,4 +425,55 @@ export type DownloadFileResponse = {
 
 export type SystemDispatchedEvents = {
   events: string[];
+};
+
+export type SetupError = {
+  source: string;
+  message: string;
+  timestamp?: number;
+  component_name?: string;
+  domain?: string;
+  identifier?: string;
+};
+
+export type DomainStatus = {
+  component: string;
+  domain: string;
+  identifier: string;
+  config: Record<string, unknown>;
+  require_domains: { domain: string; identifier: string }[];
+  optional_domains: { domain: string; identifier: string }[];
+  state: string;
+  error: string | null;
+};
+
+export type ComponentStatus = {
+  name: string;
+  state: string;
+  errors: SetupError[];
+  validation_error: string | null;
+  domains: DomainStatus[];
+};
+
+export type SetupStatusResponse = {
+  components: ComponentStatus[];
+};
+
+export type ComponentSetupStatusEvent = Event & {
+  data: {
+    component: string;
+    state: string;
+    error: string | null;
+    validation_error: string | null;
+  };
+};
+
+export type DomainSetupStatusEvent = Event & {
+  data: {
+    component: string;
+    domain: string;
+    identifier: string;
+    state: string;
+    error: string | null;
+  };
 };
