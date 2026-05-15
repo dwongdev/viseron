@@ -405,6 +405,7 @@ class Auth:
                     raise LastAdminUserError("Cannot delete the last admin user")
 
             LOGGER.debug(f"Deleting user {user_to_delete.username}")
+            self._revoke_all_for_user(user_id)
             del self.users[user_id]
             self.save()
 
@@ -416,6 +417,10 @@ class Auth:
 
             user = self.users[user_id]
             user.password = self.hash_password(new_password)
+            # Forcibly log the user out everywhere on password change. Anyone
+            # who knew the old password (e.g. an attacker the user is trying
+            # to lock out) loses access immediately.
+            self._revoke_all_for_user(user_id)
             LOGGER.debug(f"Password changed for user {user.username}")
             self.save()
 
@@ -589,36 +594,42 @@ class Auth:
         access_token_expiration: datetime.timedelta = ACCESS_TOKEN_EXPIRATION,
     ) -> RefreshToken:
         """Generate refresh token."""
-        refresh_token = RefreshToken(
-            user_id=user_id,
-            client_id=client_id,
-            session_expiration=(self.session_expiry or datetime.timedelta(days=3650)),
-            access_token_type=access_token_type,
-            access_token_expiration=access_token_expiration,
-        )
-        self.refresh_tokens[refresh_token.id] = refresh_token
-        self.save()
+        with self._user_lock:
+            refresh_token = RefreshToken(
+                user_id=user_id,
+                client_id=client_id,
+                session_expiration=(
+                    self.session_expiry or datetime.timedelta(days=3650)
+                ),
+                access_token_type=access_token_type,
+                access_token_expiration=access_token_expiration,
+            )
+            self.refresh_tokens[refresh_token.id] = refresh_token
+            self.save()
         return refresh_token
 
     def get_refresh_token(self, refresh_token_id: str) -> RefreshToken | None:
         """Get refresh token."""
-        return self.refresh_tokens.get(refresh_token_id, None)
+        with self._user_lock:
+            return self.refresh_tokens.get(refresh_token_id, None)
 
     def get_refresh_token_from_token(self, token: str) -> RefreshToken | None:
         """Get refresh token from token."""
         found_token = None
 
-        for refresh_token in self.refresh_tokens.values():
-            if hmac.compare_digest(refresh_token.token, token):
-                found_token = refresh_token
+        with self._user_lock:
+            for refresh_token in self.refresh_tokens.values():
+                if hmac.compare_digest(refresh_token.token, token):
+                    found_token = refresh_token
 
         return found_token
 
     def delete_refresh_token(self, refresh_token: RefreshToken) -> None:
         """Delete refresh token."""
-        if refresh_token.id in self.refresh_tokens:
-            del self.refresh_tokens[refresh_token.id]
-            self.save()
+        with self._user_lock:
+            if refresh_token.id in self.refresh_tokens:
+                del self.refresh_tokens[refresh_token.id]
+                self.save()
 
     def validate_refresh_token(self, refresh_token: RefreshToken) -> None:
         """Validate refresh token."""
@@ -631,10 +642,11 @@ class Auth:
     ) -> str:
         """Generate access token using JWT."""
         self.validate_refresh_token(refresh_token)
-        now = utcnow()
-        refresh_token.used_at = now.timestamp()
-        refresh_token.used_by = remote_ip
-        self.save()
+        with self._user_lock:
+            now = utcnow()
+            refresh_token.used_at = now.timestamp()
+            refresh_token.used_by = remote_ip
+            self.save()
         return jwt.encode(
             {
                 "iss": refresh_token.id,
@@ -793,6 +805,26 @@ class Auth:
                 self.save()
                 self._pat_last_used_persisted_at[stored_pat.id] = now
 
+    def _revoke_all_for_user(self, user_id: str) -> None:
+        """Revoke all sessions and PATs for user_id without acquiring the lock.
+
+        Caller MUST hold self._user_lock. The store is not persisted
+        here either, the caller is expected to call self.save() after the
+        rest of its mutations.
+        """
+        rt_ids_to_delete = [
+            rt_id for rt_id, rt in self.refresh_tokens.items() if rt.user_id == user_id
+        ]
+        for rt_id in rt_ids_to_delete:
+            del self.refresh_tokens[rt_id]
+
+        pat_ids_to_delete = [
+            t_id for t_id, t in self.access_tokens.items() if t.user_id == user_id
+        ]
+        for t_id in pat_ids_to_delete:
+            self._pat_last_used_persisted_at.pop(t_id, None)
+            del self.access_tokens[t_id]
+
     def revoke_all_for_user(self, user_id: str) -> None:
         """Revoke all sessions (refresh tokens) and personal access tokens for a user.
 
@@ -800,21 +832,5 @@ class Auth:
         re-authenticate on all devices and invalidates all PATs.
         """
         with self._user_lock:
-            # Remove all refresh tokens belonging to the user
-            rt_ids_to_delete = [
-                rt_id
-                for rt_id, rt in self.refresh_tokens.items()
-                if rt.user_id == user_id
-            ]
-            for rt_id in rt_ids_to_delete:
-                del self.refresh_tokens[rt_id]
-
-            # Remove all PATs belonging to the user
-            pat_ids_to_delete = [
-                t_id for t_id, t in self.access_tokens.items() if t.user_id == user_id
-            ]
-            for t_id in pat_ids_to_delete:
-                self._pat_last_used_persisted_at.pop(t_id, None)
-                del self.access_tokens[t_id]
-
+            self._revoke_all_for_user(user_id)
             self.save()

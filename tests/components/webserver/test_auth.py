@@ -167,6 +167,63 @@ class TestAuth:
         with pytest.raises(UserDoesNotExistError):
             self.auth.change_password("nonexistent_id", "new_password")
 
+    def test_change_password_revokes_all_sessions(self):
+        """Changing the password must invalidate all sessions and PATs."""
+        user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
+        rt = self.auth.generate_refresh_token(user.id, "client", "normal")
+        _pat, raw = self.auth.create_access_token(user.id, "My PAT")
+
+        assert rt.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is not None
+
+        self.auth.change_password(user.id, "new_password")
+
+        # All credentials for that user are gone.
+        assert rt.id not in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is None
+        assert self.auth.get_access_tokens_for_user(user.id) == []
+
+    def test_change_password_does_not_revoke_other_users(self):
+        """Changing one user's password must not affect another user's tokens."""
+        user_a = self.auth.add_user("A", "a", "a", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        rt_b = self.auth.generate_refresh_token(user_b.id, "client", "normal")
+        _b_pat, b_raw = self.auth.create_access_token(user_b.id, "B PAT")
+
+        self.auth.change_password(user_a.id, "new_password")
+
+        assert rt_b.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(b_raw) is not None
+
+    def test_delete_user_revokes_all_sessions(self):
+        """Deleting a user must invalidate all their sessions and PATs."""
+        # Need an admin to remain so the test user can be deleted.
+        self.auth.add_user("Admin", "admin", "admin", Role.ADMIN)
+        user = self.auth.add_user("Test", "test", "test", Role.WRITE)
+        rt = self.auth.generate_refresh_token(user.id, "client", "normal")
+        _pat, raw = self.auth.create_access_token(user.id, "My PAT")
+
+        self.auth.delete_user(user.id)
+
+        assert user.id not in self.auth.users
+        assert rt.id not in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(raw) is None
+
+    def test_delete_user_does_not_revoke_other_users(self):
+        """Deleting one user must not affect another user's tokens."""
+        admin = self.auth.add_user("Admin", "admin", "admin", Role.ADMIN)
+        user_b = self.auth.add_user("B", "b", "b", Role.WRITE)
+        rt_b = self.auth.generate_refresh_token(user_b.id, "client", "normal")
+        _b_pat, b_raw = self.auth.create_access_token(user_b.id, "B PAT")
+
+        # Delete a third user that has no tokens, verify B's are intact.
+        target = self.auth.add_user("Target", "target", "target", Role.WRITE)
+        self.auth.delete_user(target.id)
+
+        assert admin.id in self.auth.users
+        assert rt_b.id in self.auth.refresh_tokens
+        assert self.auth.validate_access_token_pat(b_raw) is not None
+
     def test_update_user(self):
         """Test updating a user's details."""
         user = self.auth.add_user("Test", "test", "test", Role.ADMIN)
