@@ -100,4 +100,8 @@ else
   init_db $PGDATA
 fi
 
+log_info "Updating PostgreSQL configuration..."
+# Disable checkpoint logging to reduce log noise
+sed -i 's/^#log_checkpoints = on/log_checkpoints = off/' $PGDATA/postgresql.conf
+
 log_info "*********************** Done *****************************"
