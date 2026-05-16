@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import dataclass
 from queue import Empty
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -15,6 +15,7 @@ import numpy.typing as npt
 import pytest
 import voluptuous as vol
 
+from viseron.components.nvr.nvr import EventScanFrames
 from viseron.domain_registry import DomainState
 from viseron.domains.camera.shared_frames import SharedFrame
 from viseron.domains.motion_detector.const import DOMAIN as MOTION_DETECTOR_DOMAIN
@@ -56,12 +57,16 @@ from viseron.domains.object_detector.const import (
 )
 from viseron.domains.object_detector.detected_object import DetectedObject
 from viseron.domains.object_detector.zone import Zone
-from viseron.helpers.filter import Filter
+from viseron.events import Event
+from viseron.helpers.filter import Filter, Filters
 
 from tests.common import MockCamera, MockComponent
-from tests.conftest import MockViseron
 
-# pylint: disable=protected-access  # Accessing protected members for testing
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from tests.conftest import MockViseron
+
 
 # ============================================================================
 # Constants
@@ -102,7 +107,7 @@ class ConcreteObjectDetector(AbstractObjectDetector):
         return frame
 
     def return_objects(
-        self, frame: npt.NDArray[np.uint8]
+        self, _frame: npt.NDArray[np.uint8]
     ) -> list[DetectedObject] | None:
         """Getter for objects result."""
         return self._return_objects_result
@@ -117,8 +122,8 @@ class ConcreteObjectDetector(AbstractObjectDetector):
 # ============================================================================
 
 
-@pytest.fixture
-def setup_camera(vis: MockViseron) -> MockCamera:
+@pytest.fixture(name="_setup_camera")
+def fixture_setup_camera(vis: MockViseron) -> MockCamera:
     """Register a camera and the test component in the Viseron registry.
 
     MockCamera registers itself under CAMERA_DOMAIN when passed a vis instance.
@@ -162,8 +167,12 @@ def patch_restartable_thread():
 
 
 @pytest.fixture
-def base_config() -> dict[str, Any]:
+def base_config(_setup_camera: MockCamera) -> dict[str, Any]:
     """Return a minimal valid configuration dict with all keys set to their defaults.
+
+    The camera and test component must already be registered before an
+    AbstractObjectDetector can be constructed, so this fixture depends on
+    _setup_camera for that side effect.
 
     Tests that need non-default settings should mutate a copy of this dict (or
     call add_label_config / add_zone_config on it) before constructing the
@@ -360,7 +369,6 @@ def test_ensure_min_max_width_inverted_raises() -> None:
 
 def test_constructor_default_properties(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Constructor sets expected default property values."""
@@ -376,7 +384,6 @@ def test_constructor_default_properties(
 
 def test_constructor_creates_filters_from_labels(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Constructor creates a Filter for each configured label."""
@@ -392,7 +399,6 @@ def test_constructor_creates_filters_from_labels(
 
 def test_constructor_creates_zones(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Constructor creates a Zone for each zone config entry."""
@@ -418,7 +424,6 @@ def test_constructor_creates_zones(
 
 def test_constructor_computes_min_confidence_from_labels(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """min_confidence is the lowest confidence across all configured labels."""
@@ -433,7 +438,6 @@ def test_constructor_computes_min_confidence_from_labels(
 
 def test_constructor_warns_when_no_labels_or_zones(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -447,7 +451,6 @@ def test_constructor_warns_when_no_labels_or_zones(
 
 def test_constructor_populates_listeners_list(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Constructor populates _listeners with exactly three unsubscribe callables.
@@ -469,7 +472,6 @@ def test_constructor_populates_listeners_list(
 
 def test_constructor_adds_entities(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Constructor calls add_entity for FoV binary sensor and FPS sensor."""
@@ -484,7 +486,6 @@ def test_constructor_adds_entities(
 
 def test_constructor_builds_mask_image(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """When a mask is configured the constructor generates _mask and _mask_image."""
@@ -507,7 +508,6 @@ def test_constructor_builds_mask_image(
 
 def test_constructor_scan_on_motion_only_disabled_without_motion_detector(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """scan_on_motion_only is forced False when no motion detector is registered."""
@@ -520,7 +520,6 @@ def test_constructor_scan_on_motion_only_disabled_without_motion_detector(
 
 def test_constructor_scan_on_motion_only_honoured_with_motion_detector(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """scan_on_motion_only stays True when a motion detector is registered."""
@@ -534,7 +533,6 @@ def test_constructor_scan_on_motion_only_honoured_with_motion_detector(
 
 def test_constructor_scan_on_motion_only_stays_false_when_configured_false(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """When scan_on_motion_only is False the motion detector is not consulted."""
@@ -547,7 +545,6 @@ def test_constructor_scan_on_motion_only_stays_false_when_configured_false(
 
 def test_constructor_starts_detection_thread(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     patch_restartable_thread: MagicMock,
 ) -> None:
@@ -573,7 +570,6 @@ def test_constructor_starts_detection_thread(
 
 def test_filter_fov_confidence_pass(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -590,7 +586,6 @@ def test_filter_fov_confidence_pass(
 
 def test_filter_fov_confidence_fail(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -602,13 +597,12 @@ def test_filter_fov_confidence_fail(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "confidence"
+    assert obj.filter_hit == Filters.CONFIDENCE
     assert detector.objects_in_fov == []
 
 
 def test_filter_fov_confidence_boundary(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -630,7 +624,6 @@ def test_filter_fov_confidence_boundary(
 
 def test_filter_fov_width_pass(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -648,7 +641,6 @@ def test_filter_fov_width_pass(
 
 def test_filter_fov_width_too_small(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -661,13 +653,12 @@ def test_filter_fov_width_too_small(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "width"
+    assert obj.filter_hit == Filters.WIDTH
     assert detector.objects_in_fov == []
 
 
 def test_filter_fov_width_too_large(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -680,7 +671,7 @@ def test_filter_fov_width_too_large(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "width"
+    assert obj.filter_hit == Filters.WIDTH
     assert detector.objects_in_fov == []
 
 
@@ -691,7 +682,6 @@ def test_filter_fov_width_too_large(
 
 def test_filter_fov_height_pass(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -709,7 +699,6 @@ def test_filter_fov_height_pass(
 
 def test_filter_fov_height_too_small(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -722,13 +711,12 @@ def test_filter_fov_height_too_small(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "height"
+    assert obj.filter_hit == Filters.HEIGHT
     assert detector.objects_in_fov == []
 
 
 def test_filter_fov_height_too_large(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -741,7 +729,7 @@ def test_filter_fov_height_too_large(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "height"
+    assert obj.filter_hit == Filters.HEIGHT
     assert detector.objects_in_fov == []
 
 
@@ -752,7 +740,6 @@ def test_filter_fov_height_too_large(
 
 def test_filter_fov_all_filters_pass(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -786,7 +773,6 @@ def test_filter_fov_all_filters_pass(
 
 def test_filter_fov_confidence_blocks_before_width_and_height(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -806,13 +792,12 @@ def test_filter_fov_confidence_blocks_before_width_and_height(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "confidence"
+    assert obj.filter_hit == Filters.CONFIDENCE
     assert detector.objects_in_fov == []
 
 
 def test_filter_fov_width_blocks_before_height(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -831,7 +816,7 @@ def test_filter_fov_width_blocks_before_height(
     detector.filter_fov(mock_shared_frame, [obj])
 
     assert obj.relevant is False
-    assert obj.filter_hit == "width"
+    assert obj.filter_hit == Filters.WIDTH
     assert detector.objects_in_fov == []
 
 
@@ -842,7 +827,6 @@ def test_filter_fov_width_blocks_before_height(
 
 def test_filter_fov_multiple_objects_mixed_results(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -869,7 +853,6 @@ def test_filter_fov_multiple_objects_mixed_results(
 
 def test_filter_fov_unknown_label_is_ignored(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -886,7 +869,6 @@ def test_filter_fov_unknown_label_is_ignored(
 
 def test_filter_fov_empty_objects_list(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -906,7 +888,6 @@ def test_filter_fov_empty_objects_list(
 
 def test_filter_fov_trigger_event_recording_set_when_enabled(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -922,7 +903,6 @@ def test_filter_fov_trigger_event_recording_set_when_enabled(
 
 def test_filter_fov_trigger_event_recording_not_set_when_disabled(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -943,7 +923,6 @@ def test_filter_fov_trigger_event_recording_not_set_when_disabled(
 
 def test_filter_fov_store_flag_set_on_first_detection(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -959,7 +938,6 @@ def test_filter_fov_store_flag_set_on_first_detection(
 
 def test_filter_fov_store_flag_not_set_when_disabled(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -975,7 +953,6 @@ def test_filter_fov_store_flag_not_set_when_disabled(
 
 def test_filter_fov_store_interval_prevents_consecutive_stores(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1004,7 +981,6 @@ def test_filter_fov_store_interval_prevents_consecutive_stores(
 
 def test_filter_fov_dispatches_event_when_objects_change(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1021,7 +997,6 @@ def test_filter_fov_dispatches_event_when_objects_change(
 
 def test_filter_fov_no_event_when_objects_unchanged(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1043,7 +1018,6 @@ def test_filter_fov_no_event_when_objects_unchanged(
 
 def test_filter_fov_log_all_objects_branch(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1063,7 +1037,6 @@ def test_filter_fov_log_all_objects_branch(
 
 def test_filter_fov_log_filtered_objects_branch(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1086,7 +1059,6 @@ def test_filter_fov_log_filtered_objects_branch(
 
 def test_objects_in_fov_setter_dispatches_on_change(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """_objects_in_fov_setter fires exactly one event when the list changes."""
@@ -1101,7 +1073,6 @@ def test_objects_in_fov_setter_dispatches_on_change(
 
 def test_objects_in_fov_setter_suppresses_event_when_unchanged(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """_objects_in_fov_setter does not fire an event when the list is identical."""
@@ -1121,7 +1092,6 @@ def test_objects_in_fov_setter_suppresses_event_when_unchanged(
 
 def test_filter_zones_no_zones_does_not_raise(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1134,7 +1104,6 @@ def test_filter_zones_no_zones_does_not_raise(
 
 def test_filter_zones_calls_filter_zone_on_each_zone(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1176,7 +1145,6 @@ def test_filter_zones_calls_filter_zone_on_each_zone(
 
 def test_filter_zones_object_inside_zone_is_marked_relevant(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1222,7 +1190,6 @@ def test_filter_zones_object_inside_zone_is_marked_relevant(
 
 def test_filter_zones_object_outside_zone_is_excluded(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1275,7 +1242,6 @@ def test_filter_zones_object_outside_zone_is_excluded(
 
 def test_objects_in_fov_property_returns_filtered_objects(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1295,7 +1261,6 @@ def test_objects_in_fov_property_returns_filtered_objects(
 
 def test_fps_property(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Fps property reads directly from the configuration dict."""
@@ -1307,7 +1272,6 @@ def test_fps_property(
 
 def test_scan_on_motion_only_property(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """scan_on_motion_only property reflects the (possibly overridden) config value."""
@@ -1321,7 +1285,6 @@ def test_scan_on_motion_only_property(
 
 def test_mask_property_empty_by_default(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Mask property is an empty list when no mask is configured."""
@@ -1330,7 +1293,6 @@ def test_mask_property_empty_by_default(
 
 def test_min_confidence_property(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """min_confidence is the lowest confidence across all label filters."""
@@ -1344,7 +1306,6 @@ def test_min_confidence_property(
 
 def test_avg_fps_properties_empty_at_start(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """FPS properties return 0 when no measurements have been recorded yet."""
@@ -1357,7 +1318,6 @@ def test_avg_fps_properties_empty_at_start(
 
 def test_avg_fps_properties_after_measurements(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """FPS properties compute the rounded average of recorded measurements."""
@@ -1379,7 +1339,6 @@ def test_avg_fps_properties_after_measurements(
 
 def test_concat_labels_empty_when_no_labels_or_zones(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """concat_labels returns an empty list when no FoV labels/zones are configured."""
@@ -1390,7 +1349,6 @@ def test_concat_labels_empty_when_no_labels_or_zones(
 
 def test_concat_labels_fov_labels_only(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """concat_labels returns only FoV filters when no zones are configured."""
@@ -1408,7 +1366,6 @@ def test_concat_labels_fov_labels_only(
 
 def test_concat_labels_zone_labels_only(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """concat_labels returns only zone filters when no FoV labels are configured."""
@@ -1448,7 +1405,6 @@ def test_concat_labels_zone_labels_only(
 
 def test_concat_labels_fov_and_zone_labels_combined(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """concat_labels merges FoV filters first, then zone filters, in order.
@@ -1517,7 +1473,6 @@ def test_concat_labels_fov_and_zone_labels_combined(
 
 def test_concat_labels_multiple_zones_appended_in_order(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Zone filters from multiple zones are appended in zone-declaration order.
@@ -1587,7 +1542,6 @@ def test_concat_labels_multiple_zones_appended_in_order(
 
 def test_concat_labels_same_label_in_fov_and_zone_produces_two_entries(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """Same label names in both FoV and a zone produces two independent Filter entries.
@@ -1635,23 +1589,17 @@ def test_concat_labels_same_label_in_fov_and_zone_produces_two_entries(
 # ============================================================================
 
 
-@dataclass
-class MockEventData:
-    """Mock event data with only the 'scan' field."""
-
-    scan: bool
-
-
-@dataclass
-class MockEvent:
-    """Mock event with only the 'data' field."""
-
-    data: MockEventData
+def _scan_event(scan: bool) -> Event[EventScanFrames]:
+    """Return an EventScanFrames event for handle_stop_scan tests."""
+    return Event(
+        name="test_scan_frames",
+        data=EventScanFrames(camera_identifier=CAMERA_IDENTIFIER, scan=scan),
+        timestamp=time.time(),
+    )
 
 
 def test_handle_stop_scan_clears_fov_and_zones(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1668,7 +1616,7 @@ def test_handle_stop_scan_clears_fov_and_zones(
     mock_zone = MagicMock()
     detector.zones = [mock_zone]
 
-    detector.handle_stop_scan(MockEvent(data=MockEventData(scan=False)))
+    detector.handle_stop_scan(_scan_event(scan=False))
 
     assert detector.objects_in_fov == []
     mock_zone.objects_in_zone_setter.assert_called_once_with(None, [])
@@ -1676,7 +1624,6 @@ def test_handle_stop_scan_clears_fov_and_zones(
 
 def test_handle_stop_scan_dispatches_fov_event(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1688,14 +1635,13 @@ def test_handle_stop_scan_dispatches_fov_event(
     detector.filter_fov(mock_shared_frame, [obj])
     vis.dispatch_event.reset_mock()  # ignore the event from filter_fov
 
-    detector.handle_stop_scan(MockEvent(data=MockEventData(scan=False)))
+    detector.handle_stop_scan(_scan_event(scan=False))
 
     vis.dispatch_event.assert_called_once()
 
 
 def test_handle_stop_scan_noop_when_scan_true(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1707,7 +1653,7 @@ def test_handle_stop_scan_noop_when_scan_true(
     detector.filter_fov(mock_shared_frame, [obj])
     vis.dispatch_event.reset_mock()
 
-    detector.handle_stop_scan(MockEvent(data=MockEventData(scan=True)))
+    detector.handle_stop_scan(_scan_event(scan=True))
 
     assert len(detector.objects_in_fov) == 1  # unchanged
     vis.dispatch_event.assert_not_called()
@@ -1720,7 +1666,6 @@ def test_handle_stop_scan_noop_when_scan_true(
 
 def test_full_detection_flow_with_filters(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1750,12 +1695,11 @@ def test_full_detection_flow_with_filters(
     assert obj_pass.trigger_event_recording is True
     assert obj_pass.store is True
     assert obj_fail.relevant is False
-    assert obj_fail.filter_hit == "confidence"
+    assert obj_fail.filter_hit == Filters.CONFIDENCE
 
 
 def test_multiple_labels_with_independent_filters(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1786,7 +1730,7 @@ def test_multiple_labels_with_independent_filters(
 # ============================================================================
 
 
-def make_session():
+def make_session() -> MagicMock:
     """Return a mock DB session with execute and commit mocks.
 
     Used by tests that verify storage interactions without a real database.
@@ -1799,7 +1743,6 @@ def make_session():
 
 def test_insert_object_calls_db_session(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """_insert_object opens a session, executes an INSERT statement, and commits.
@@ -1812,7 +1755,7 @@ def test_insert_object_calls_db_session(
     captured_session = make_session()
 
     @contextlib.contextmanager
-    def sess_ctx():
+    def sess_ctx() -> Iterator[MagicMock]:
         yield captured_session
 
     storage.get_session.side_effect = sess_ctx
@@ -1828,8 +1771,8 @@ def test_insert_object_calls_db_session(
 
 def test_insert_objects_skips_non_stored_objects(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
+    mock_shared_frame: SharedFrame,
 ) -> None:
     """_insert_objects does not call dispatch_event for objects with store=False."""
     det = ConcreteObjectDetector(vis, base_config, CAMERA_IDENTIFIER)
@@ -1837,7 +1780,7 @@ def test_insert_objects_skips_non_stored_objects(
     storage = MagicMock()
 
     @contextlib.contextmanager
-    def sess_ctx():
+    def sess_ctx() -> Iterator[MagicMock]:
         yield make_session()
 
     storage.get_session.side_effect = sess_ctx
@@ -1847,14 +1790,13 @@ def test_insert_objects_skips_non_stored_objects(
     obj.store = False
     vis.dispatch_event.reset_mock()
 
-    det._insert_objects(None, [obj])
+    det._insert_objects(mock_shared_frame, [obj])
 
     vis.dispatch_event.assert_not_called()
 
 
 def test_insert_objects_snapshot_and_dispatch_when_stored(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
     mock_shared_frame: SharedFrame,
 ) -> None:
@@ -1864,7 +1806,7 @@ def test_insert_objects_snapshot_and_dispatch_when_stored(
     storage = MagicMock()
 
     @contextlib.contextmanager
-    def sess_ctx():
+    def sess_ctx() -> Iterator[MagicMock]:
         yield make_session()
 
     storage.get_session.side_effect = sess_ctx
@@ -1872,12 +1814,12 @@ def test_insert_objects_snapshot_and_dispatch_when_stored(
 
     obj = create_detected_object("person", confidence=0.9)
     obj.store = True
-    det._camera.save_snapshot = MagicMock(return_value="snap.jpg")
     vis.dispatch_event.reset_mock()
 
-    det._insert_objects(mock_shared_frame, [obj])
+    with patch.object(det._camera, "save_snapshot", return_value="snap.jpg") as mock:
+        det._insert_objects(mock_shared_frame, [obj])
 
-    det._camera.save_snapshot.assert_called_once()
+    mock.assert_called_once()
     assert vis.dispatch_event.called
 
 
@@ -1937,7 +1879,6 @@ class FrameEvent:
 
 def test_object_detection_loop_runs_detect_and_respects_kill_flag(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """_object_detection calls preprocess and return_objects, then stops on kill flag.
@@ -1948,20 +1889,12 @@ def test_object_detection_loop_runs_detect_and_respects_kill_flag(
     produces a clear timeout failure rather than hanging the suite.
     """
     det = ConcreteObjectDetector(vis, base_config, CAMERA_IDENTIFIER)
-    det._camera.shared_frames.get_decoded_frame_rgb = MagicMock(
-        return_value=np.zeros((10, 10, 3), np.uint8)
-    )
-    det.preprocess = MagicMock(side_effect=lambda f: f)
 
-    def _return_and_kill(_frame):
+    def _return_and_kill(
+        _frame: npt.NDArray[np.uint8],
+    ) -> list[DetectedObject]:
         det._kill_received = True
         return [create_detected_object("person", 0.5)]
-
-    det.return_objects = MagicMock(side_effect=_return_and_kill)
-
-    det.filter_fov = MagicMock()
-    det.filter_zones = MagicMock()
-    det._insert_objects = MagicMock()
 
     shared_frame = MagicMock()
     shared_frame.camera_identifier = CAMERA_IDENTIFIER
@@ -1972,23 +1905,34 @@ def test_object_detection_loop_runs_detect_and_respects_kill_flag(
         return_value=FrameEvent(data=FrameData(shared_frame=shared_frame))
     )
 
-    _run_detection_with_timeout(det)
+    with (
+        patch.object(
+            det._camera.shared_frames,
+            "get_decoded_frame_rgb",
+            return_value=np.zeros((10, 10, 3), np.uint8),
+        ),
+        patch.object(det, "preprocess", side_effect=lambda frame: frame) as preprocess,
+        patch.object(
+            det, "return_objects", side_effect=_return_and_kill
+        ) as return_objects,
+        patch.object(det, "filter_fov"),
+        patch.object(det, "filter_zones"),
+        patch.object(det, "_insert_objects"),
+    ):
+        _run_detection_with_timeout(det)
 
     assert det._kill_received
-    det.preprocess.assert_called_once()
-    det.return_objects.assert_called_once()
+    preprocess.assert_called_once()
+    return_objects.assert_called_once()
 
 
 def test_object_detection_loop_discards_stale_frames(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """_object_detection skips frames older than max_frame_age and logs a debug msg."""
     det = ConcreteObjectDetector(vis, base_config, CAMERA_IDENTIFIER)
     det._logger = MagicMock()
-    det.preprocess = MagicMock()
-    det.return_objects = MagicMock()
 
     stale_frame = MagicMock()
     stale_frame.camera_identifier = CAMERA_IDENTIFIER
@@ -1997,7 +1941,7 @@ def test_object_detection_loop_discards_stale_frames(
     call_count = 0
 
     # queue.get may be called as get(timeout=1) or get(1); accept both.
-    def get_side_effect(_timeout=None, **_kwargs):
+    def get_side_effect(_timeout: float | None = None, **_kwargs: Any) -> FrameEvent:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -2009,11 +1953,15 @@ def test_object_detection_loop_discards_stale_frames(
     det.object_detection_queue = MagicMock()
     det.object_detection_queue.get.side_effect = get_side_effect
 
-    _run_detection_with_timeout(det)
+    with (
+        patch.object(det, "preprocess") as preprocess,
+        patch.object(det, "return_objects") as return_objects,
+    ):
+        _run_detection_with_timeout(det)
 
     # preprocess / return_objects must NOT have been called for the stale frame
-    det.preprocess.assert_not_called()
-    det.return_objects.assert_not_called()
+    preprocess.assert_not_called()
+    return_objects.assert_not_called()
     # The production code logs: f"Frame is {frame_age} seconds old. Discarding"
     # as a single f-string argument. Check that at least one debug call contains
     # the expected substring rather than matching the exact dynamic frame_age value.
@@ -2027,7 +1975,6 @@ def test_object_detection_loop_discards_stale_frames(
 
 def test_stop_sets_kill_flag_and_joins_thread(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """stop() sets _kill_received=True then stops and joins the thread."""
@@ -2044,17 +1991,16 @@ def test_stop_sets_kill_flag_and_joins_thread(
 
 def test_unload_calls_all_listener_unsubscribes_and_stop(
     vis: MockViseron,
-    setup_camera: MockCamera,
     base_config: dict[str, Any],
 ) -> None:
     """unload() calls every listener unsubscribe function then calls stop()."""
     det = ConcreteObjectDetector(vis, base_config, CAMERA_IDENTIFIER)
     m1, m2 = MagicMock(), MagicMock()
     det._listeners = [m1, m2]
-    det.stop = MagicMock()
 
-    det.unload()
+    with patch.object(det, "stop") as stop:
+        det.unload()
 
     m1.assert_called_once()
     m2.assert_called_once()
-    det.stop.assert_called_once()
+    stop.assert_called_once()
