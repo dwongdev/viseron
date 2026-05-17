@@ -1,0 +1,24 @@
+services:
+  amd64-wheels:
+    build:
+      cache_from:
+        - roflcoopter/amd64-wheels:$WHEELS_VERSION-$UBUNTU_VERSION
+        - type=gha,scope=amd64-wheels
+      cache_to:
+        - type=gha,mode=max,scope=amd64-wheels,ignore-error=true
+
+  amd64-viseron:
+    build:
+      cache_from:
+        - roflcoopter/amd64-viseron:dev
+        - type=gha,scope=amd64-viseron
+      cache_to:
+        - type=gha,mode=max,scope=amd64-viseron,ignore-error=true
+
+  amd64-viseron-tests:
+    build:
+      cache_from:
+        - roflcoopter/amd64-viseron-tests:dev
+        - type=gha,scope=amd64-viseron-tests
+      cache_to:
+        - type=gha,mode=max,scope=amd64-viseron-tests,ignore-error=true
