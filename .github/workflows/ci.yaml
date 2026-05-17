@@ -16,7 +16,6 @@ env:
   BUILDKIT_PROGRESS: plain
   DOCKER_COMPOSE_CI_FILES: >-
     --file azure-pipelines/docker-compose-build.yaml
-    --file .github/docker-compose-ci-cache.yaml
     --env-file azure-pipelines/.env
 
 jobs:
@@ -364,32 +363,16 @@ jobs:
         id: python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
-      - name: List free space before cleaning
-        run: |
-          df -h
-      - name: Clean up space used
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          docker rmi -f $(docker images -aq) || true
-          docker system prune --force --all --volumes
-      - name: List free space after cleaning
-        run: |
-          df -h
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
           install: true
-      - name: Expose GitHub Actions cache runtime
-        uses: crazy-max/ghaction-github-runtime@v3
       - name: Build wheels Docker image
         run: |
-          docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} build --build-arg BUILDKIT_INLINE_CACHE=1 amd64-wheels
-      - name: Build Viseron Docker image
-        run: |
-          docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} build --build-arg BUILDKIT_INLINE_CACHE=1 amd64-viseron
+          docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} build amd64-wheels
       - name: Build pytest Docker image
         run: |
-          docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} build --build-arg BUILDKIT_INLINE_CACHE=1 amd64-viseron-tests
+          docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} build amd64-viseron-tests
       - name: Run pytest
         run: |
           if docker compose ${{ env.DOCKER_COMPOSE_CI_FILES }} up --no-build amd64-viseron-tests; then
