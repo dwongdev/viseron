@@ -167,6 +167,8 @@ services:
       args:
         ARCH: amd64
         VISERON_VERSION: dev
+        UBUNTU_VERSION: "$UBUNTU_VERSION"
+        WHEELS_VERSION: "$WHEELS_VERSION"
       cache_from:
         - roflcoopter/amd64-viseron-tests:dev
     image: roflcoopter/amd64-viseron-tests:dev
