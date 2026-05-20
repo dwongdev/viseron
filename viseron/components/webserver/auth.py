@@ -268,6 +268,7 @@ class Auth:
         self._auth_store = Storage(vis, AUTH_STORAGE_KEY)
         self._data_lock = Lock()
         self._user_lock = Lock()
+        self._decoy_jwt_key = secrets.token_hex(64)
 
     @property
     def users(self) -> dict[str, User]:
@@ -773,12 +774,11 @@ class Auth:
             return None
 
         refresh_token = self.get_refresh_token(cast("str", unverif_claims.get("iss")))
-        if refresh_token is None:
-            jwt_key = ""
-            issuer = ""
-        else:
-            jwt_key = refresh_token.jwt_key
-            issuer = refresh_token.id
+
+        # Always perform a JWT verification regardless of whether the issuer
+        # was found, to keep timing uniform.
+        jwt_key = refresh_token.jwt_key if refresh_token else self._decoy_jwt_key
+        issuer = refresh_token.id if refresh_token else ""
 
         try:
             jwt.decode(
