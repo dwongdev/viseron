@@ -97,7 +97,7 @@ upgrade_db() {
   log_info "Upgrade complete. It is recommended to remove the old database files: $PGDATA-$old_version"
 }
 
-if [ -e $PGDATA/postgresql.conf ]; then
+if [ -e $PGDATA/PG_VERSION ]; then
   log_info "Database has already been initialized."
   DATABASE_VERSION=$(cat $PGDATA/PG_VERSION)
   if [ $DATABASE_VERSION != $PG_VERSION ]; then
