@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import logging
 import multiprocessing as mp
 import sys
+import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Literal
@@ -30,6 +33,13 @@ if TYPE_CHECKING:
     from viseron import Viseron
 
 LOGGER = logging.getLogger(__name__)
+
+# Upper bound on the parent's pending-callback dict. check_tier jobs are sent
+# with a callback, but DedupCheckQueue drops superseded jobs in the subprocess
+# so those jobs never produce a reply and their callbacks would otherwise stay
+# in _callbacks forever. Evicting the oldest entries FIFO past this cap keeps
+# the dict bounded; a lost entry only means a future reply becomes a no-op pop.
+MAX_PENDING_CALLBACKS = 10_000
 
 
 @dataclass
@@ -88,15 +98,81 @@ class DataItemDeleteFile:
     error: str | None = None
 
 
+class DedupCheckQueue:
+    """FIFO queue for check_tier jobs that dedupes by ``throttle_key``.
+
+    Drop-in replacement for ``queue.Queue`` on the check_tier dispatch path:
+    same ``.put(item)`` / ``.get(timeout=...)`` signature (``queue.Empty`` is
+    raised on timeout), so ``dispatcher_task`` and ``worker_task_mixed`` need no
+    other change.
+
+    A check_tier job reads the *current* database and filesystem state, so when
+    several jobs for the same ``throttle_key`` are queued only the most recent
+    one carries useful information. When the workers are saturated by
+    ``file_queue`` (move_file/delete_file take ~100 ms while a tier check can
+    take tens of seconds), a plain unbounded ``Queue`` lets pending ``DataItem``
+    instances accumulate without limit and the subprocess RSS grows unbounded.
+    Deduping on insert bounds the queue to ``N_cameras * N_throttle_keys``
+    regardless of how fast jobs are enqueued.
+
+    ``file_queue`` is intentionally left as a plain ``Queue``: move_file and
+    delete_file are per-file destructive operations and must not be dropped.
+    """
+
+    def __init__(self) -> None:
+        self._items: OrderedDict[str, DataItem] = OrderedDict()
+        self._cond = threading.Condition()
+
+    def put(self, item: DataItem) -> None:
+        """Insert a job, replacing any queued job with the same throttle_key."""
+        with self._cond:
+            # Drop the stale entry first so the replacement is appended at the
+            # tail and processed in arrival order relative to other keys.
+            self._items.pop(item.throttle_key, None)
+            self._items[item.throttle_key] = item
+            self._cond.notify()
+
+    def get(self, timeout: float | None = None) -> DataItem:
+        """Pop the oldest job, blocking up to ``timeout`` seconds.
+
+        Raises ``queue.Empty`` if no job becomes available within ``timeout``.
+        """
+        with self._cond:
+            end_time = None if timeout is None else time.monotonic() + timeout
+            while not self._items:
+                if end_time is None:
+                    self._cond.wait()
+                else:
+                    remaining = end_time - time.monotonic()
+                    if remaining <= 0:
+                        raise Empty
+                    self._cond.wait(remaining)
+            _, item = self._items.popitem(last=False)
+            return item
+
+    def qsize(self) -> int:
+        """Return the number of queued jobs."""
+        with self._cond:
+            return len(self._items)
+
+
 class TierCheckWorker(SubProcessWorker):
     """Check tiers in a separate subprocess."""
 
     def __init__(self, vis: Viseron, cpulimit: int | None, workers: int) -> None:
         self._cpulimit = cpulimit
         self._workers = workers
-        self._callbacks: dict[
+        # OrderedDict so the oldest pending callback can be evicted FIFO once
+        # MAX_PENDING_CALLBACKS is reached.
+        self._callbacks: OrderedDict[
             str, Callable[[DataItem | DataItemMoveFile | DataItemDeleteFile], None]
-        ] = {}
+        ] = OrderedDict()
+        # Monotonic callback ids. str(id(callback)) is unsafe here: bound
+        # methods like self.on_check_tier_result are created lazily on each
+        # attribute access, so CPython may reuse a freed method's address and
+        # two handlers could collide on the same id, routing a reply to the
+        # wrong callback. itertools.count.__next__ is atomic under the GIL.
+        self._next_callback_id = itertools.count(1)
         super().__init__(vis, f"{__name__}.tier_check_worker", qsize=0)
 
     def spawn_subprocess(self) -> RestartablePopen:
@@ -123,8 +199,15 @@ class TierCheckWorker(SubProcessWorker):
     ) -> None:
         """Send command to the subprocess."""
         if callback is not None:
-            item.callback_id = str(id(callback))
+            item.callback_id = str(next(self._next_callback_id))
             self._callbacks[item.callback_id] = callback
+            if len(self._callbacks) > MAX_PENDING_CALLBACKS:
+                evicted, _ = self._callbacks.popitem(last=False)
+                LOGGER.debug(
+                    "Pending callbacks exceeded %d, evicted oldest %s",
+                    MAX_PENDING_CALLBACKS,
+                    evicted,
+                )
         self.input_queue.put(item)
 
     def work_output(
@@ -222,7 +305,7 @@ def worker_task_files(
 
 def worker_task_mixed(
     worker: Worker,
-    check_queue: Queue[DataItem],
+    check_queue: DedupCheckQueue,
     file_queue: Queue[DataItemDeleteFile | DataItemMoveFile],
     output_queue: Queue[DataItem | DataItemDeleteFile | DataItemMoveFile],
     name: str,
@@ -248,7 +331,7 @@ def worker_task_mixed(
 
 def dispatcher_task(
     process_queue: Queue[DataItem | DataItemDeleteFile | DataItemMoveFile],
-    check_queue: Queue[DataItem],
+    check_queue: DedupCheckQueue,
     file_queue: Queue[DataItemDeleteFile | DataItemMoveFile],
 ) -> None:
     """Dispatcher thread routing jobs to dedicated queues.
@@ -299,7 +382,7 @@ def main() -> None:
 
     LOGGER.debug(f"Starting {args.workers} worker threads")
 
-    check_queue: Queue[DataItem] = Queue()
+    check_queue = DedupCheckQueue()
     file_queue: Queue[DataItemDeleteFile | DataItemMoveFile] = Queue()
 
     dispatcher = RestartableThread(
