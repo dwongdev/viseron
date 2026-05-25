@@ -163,10 +163,14 @@ class TierCheckWorker(SubProcessWorker):
         self._cpulimit = cpulimit
         self._workers = workers
         # OrderedDict so the oldest pending callback can be evicted FIFO once
-        # MAX_PENDING_CALLBACKS is reached.
+        # MAX_PENDING_CALLBACKS is reached. send_command (caller thread) and
+        # work_output (subprocess output thread) both mutate _callbacks, so all
+        # access is guarded by _callbacks_lock to keep the insert+len+popitem
+        # sequence atomic against concurrent pops.
         self._callbacks: OrderedDict[
             str, Callable[[DataItem | DataItemMoveFile | DataItemDeleteFile], None]
         ] = OrderedDict()
+        self._callbacks_lock = threading.Lock()
         # Monotonic callback ids. str(id(callback)) is unsafe here: bound
         # methods like self.on_check_tier_result are created lazily on each
         # attribute access, so CPython may reuse a freed method's address and
@@ -198,16 +202,23 @@ class TierCheckWorker(SubProcessWorker):
         | None,
     ) -> None:
         """Send command to the subprocess."""
+        evicted: str | None = None
         if callback is not None:
             item.callback_id = str(next(self._next_callback_id))
-            self._callbacks[item.callback_id] = callback
-            if len(self._callbacks) > MAX_PENDING_CALLBACKS:
-                evicted, _ = self._callbacks.popitem(last=False)
-                LOGGER.debug(
-                    "Pending callbacks exceeded %d, evicted oldest %s",
-                    MAX_PENDING_CALLBACKS,
-                    evicted,
-                )
+            with self._callbacks_lock:
+                self._callbacks[item.callback_id] = callback
+                if len(self._callbacks) > MAX_PENDING_CALLBACKS:
+                    evicted, _ = self._callbacks.popitem(last=False)
+        if evicted is not None:
+            # Means the subprocess is taking longer to reply than we can
+            # generate new jobs. The evicted callback's reply will later
+            # surface as a benign "No callback found" miss in work_output.
+            LOGGER.warning(
+                "Pending callbacks exceeded %d, evicted oldest id=%s; "
+                "its reply will be dropped when it arrives",
+                MAX_PENDING_CALLBACKS,
+                evicted,
+            )
         self.input_queue.put(item)
 
     def work_output(
@@ -217,11 +228,19 @@ class TierCheckWorker(SubProcessWorker):
         if not item.callback_id:
             return
 
-        callback = self._callbacks.pop(item.callback_id, None)
+        with self._callbacks_lock:
+            callback = self._callbacks.pop(item.callback_id, None)
         if callback:
             callback(item)
         else:
-            LOGGER.warning("No callback found")
+            # Expected when the callback was FIFO-evicted in send_command
+            # because MAX_PENDING_CALLBACKS was exceeded; logged at DEBUG so
+            # it doesn't spam under sustained load.
+            LOGGER.debug(
+                "No callback found for id=%s cmd=%s",
+                item.callback_id,
+                item.cmd,
+            )
 
 
 def setup_logger(loglevel: str) -> None:
