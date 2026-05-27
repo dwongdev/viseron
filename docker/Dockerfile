@@ -96,6 +96,7 @@ RUN \
   usbutils \
   # OpenCV and FFmpeg Dependencies
   libgomp1 \
+  libwebpdemux2 \
   # dlib Dependencies
   # OpenBLAS provided via build-arg since Jetson Nano runs on older Ubuntu version
   "${OPENBLAS_APT_PACKAGE}" \
