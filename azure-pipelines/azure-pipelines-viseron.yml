@@ -77,7 +77,7 @@ stages:
     dependsOn:
       - Build
       - Test
-    condition: and(succeeded('Build'), in(dependencies.Test.result, 'Succeeded', 'Skipped'))
+    condition: and(succeeded('Build'), in(dependencies.Test.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'))
     jobs:
       - job: "ReleaseViseron"
         pool:
