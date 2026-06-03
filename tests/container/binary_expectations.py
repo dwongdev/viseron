@@ -29,6 +29,7 @@ ARCH_OPTIONAL_SO_PATTERNS: dict[str, tuple[str, ...]] = {
     "amd64-cuda": (
         r"libcuda\.so\.",  # CUDA driver,requires NVIDIA GPU + driver
         r"libcudart\.so\.",  # CUDA runtime (system copy)
+        r"libtriton\.so",  # Triton, Ultralytics dependency
         r"libmlx5\.so\.",  # Mellanox ConnectX InfiniBand
         r"librdmacm\.so\.",  # RDMA connection manager
         r"libibverbs\.so\.",  # InfiniBand verbs
