@@ -44,6 +44,7 @@ from viseron.components.webserver.const import (
     WS_ERROR_NOT_FOUND,
     WS_ERROR_RELOAD_CONFIG_FAILED,
     WS_ERROR_SAVE_CONFIG_FAILED,
+    WS_ERROR_UNKNOWN_ERROR,
 )
 from viseron.components.webserver.download_token import DownloadToken
 from viseron.const import CONFIG_PATH, EVENT_STATE_CHANGED, RESTART_EXIT_CODE
@@ -514,12 +515,18 @@ async def export_recording(connection: WebSocketHandler, message) -> None:
             Fragment(file.filename, file.path, file.duration, file.orig_ctime)
             for file in files
         ]
-        recording_mp4 = camera.fragmenter.concatenate_fragments(fragments)
-        if not recording_mp4:
+        if not fragments:
             return subscription_error_message(
                 message["command_id"],
                 WS_ERROR_NOT_FOUND,
                 "No fragments found for recording.",
+            )
+        recording_mp4 = camera.fragmenter.concatenate_fragments(fragments)
+        if not recording_mp4:
+            return subscription_error_message(
+                message["command_id"],
+                WS_ERROR_UNKNOWN_ERROR,
+                "Failed to concatenate fragments for recording.",
             )
 
         create_directory(DOWNLOAD_PATH)

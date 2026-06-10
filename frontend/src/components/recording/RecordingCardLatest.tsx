@@ -1,4 +1,9 @@
-import { FolderDetails, FolderOff, TrashCan } from "@carbon/icons-react";
+import {
+  Download,
+  FolderDetails,
+  FolderOff,
+  TrashCan,
+} from "@carbon/icons-react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardActions from "@mui/material/CardActions";
@@ -19,6 +24,7 @@ import ConfirmDeleteDialog from "components/dialog/ConfirmDeleteDialog";
 import { getVideoElement } from "components/player/utils";
 import VideoPlayerPlaceholder from "components/player/videoplayer/VideoPlayerPlaceholder";
 import { useAuthContext } from "context/AuthContext";
+import { useExportRecording } from "hooks/UseExportRecording";
 import { useCamera } from "lib/api/camera";
 import { useDeleteRecording, useRecordings } from "lib/api/recordings";
 import { objHasValues } from "lib/helpers";
@@ -41,6 +47,7 @@ export default function RecordingCardLatest({
   const theme = useTheme();
   const { user } = useAuthContext();
   const deleteRecording = useDeleteRecording();
+  const exportRecording = useExportRecording();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const recordingsQuery = useRecordings({
@@ -194,6 +201,20 @@ export default function RecordingCardLatest({
                   disabled={!objHasValues(recording)}
                 >
                   <FolderDetails size={20} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Download Recording">
+              <span>
+                <IconButton
+                  disabled={!objHasValues(recording)}
+                  onClick={() => {
+                    if (recording) {
+                      exportRecording(camera_identifier, recording.id);
+                    }
+                  }}
+                >
+                  <Download size={20} />
                 </IconButton>
               </span>
             </Tooltip>
