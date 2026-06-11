@@ -13,10 +13,12 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
+import { useState } from "react";
 import LazyLoad from "react-lazyload";
 import { Link } from "react-router-dom";
 
 import MutationIconButton from "components/buttons/MutationIconButton";
+import ConfirmDeleteDialog from "components/dialog/ConfirmDeleteDialog";
 import { getVideoElement } from "components/player/utils";
 import VideoPlayerPlaceholder from "components/player/videoplayer/VideoPlayerPlaceholder";
 import { useAuthContext } from "context/AuthContext";
@@ -44,6 +46,7 @@ export default function RecordingCardDaily({
   const theme = useTheme();
   const { user } = useAuthContext();
   const deleteRecording = useDeleteRecording();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <Card
@@ -132,23 +135,36 @@ export default function RecordingCardDaily({
               </span>
             </Tooltip>
             {!user || user.role === "admin" || user.role === "write" ? (
-              <Tooltip title="Delete All Videos">
-                <span>
-                  <MutationIconButton
-                    mutation={deleteRecording}
-                    color="error"
-                    onClick={() => {
-                      deleteRecording.mutate({
+              <>
+                <Tooltip title="Delete All Videos">
+                  <span>
+                    <MutationIconButton
+                      mutation={deleteRecording}
+                      color="error"
+                      onClick={() => setConfirmOpen(true)}
+                    >
+                      <TrashCan size={20} />
+                    </MutationIconButton>
+                  </span>
+                </Tooltip>
+                <ConfirmDeleteDialog
+                  open={confirmOpen}
+                  onClose={() => setConfirmOpen(false)}
+                  onConfirm={() => {
+                    deleteRecording.mutate(
+                      {
                         identifier: camera.identifier,
                         date,
                         failed: camera.failed,
-                      });
-                    }}
-                  >
-                    <TrashCan size={20} />
-                  </MutationIconButton>
-                </span>
-              </Tooltip>
+                      },
+                      { onSuccess: () => setConfirmOpen(false) },
+                    );
+                  }}
+                  isPending={deleteRecording.isPending}
+                  title="Delete all videos"
+                  description={`Delete all recordings for ${getDisplayDateStringFromDayjs(getDayjsFromDateString(date))}? This action cannot be undone.`}
+                />
+              </>
             ) : null}
           </Stack>
         </Stack>
