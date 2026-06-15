@@ -18,7 +18,7 @@ from viseron.components.webserver.auth import Role
 from viseron.components.webserver.const import COMPONENT
 from viseron.domains.camera.const import DOMAIN as CAMERA_DOMAIN
 from viseron.exceptions import DomainNotRegisteredError
-from viseron.helpers import get_utc_offset, utcnow
+from viseron.helpers import get_utc_offset, normalize_subpath, utcnow
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -131,11 +131,7 @@ class ViseronRequestHandler(tornado.web.RequestHandler):
         """
         ingress_path = self.request.headers.get("X-Ingress-Path", "")
         if ingress_path:
-            # Normalize: ensure it starts with / and doesn't end with /
-            ingress_path = ingress_path.strip()
-            if ingress_path.endswith("/"):
-                ingress_path = ingress_path.rstrip("/")
-            return ingress_path
+            return normalize_subpath(ingress_path)
         return self._webserver.configured_subpath
 
     def on_finish(self) -> None:
