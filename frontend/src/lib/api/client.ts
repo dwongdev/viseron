@@ -4,10 +4,17 @@ import axios from "axios";
 // Detect base path for subpath / Home Assistant Ingress support.
 // Priority: window.baseUrl (injected by nginx when behind HA Ingress)
 //           > pathname-based detection (for configured subpath)
+function normalizeSubpath(subpath: string): string {
+  // Collapse multiple leading slashes to prevent protocol-relative URL injection
+  // e.g. //evil.com -> /evil.com. Map bare / to empty string.
+  const normalized = `/${subpath.replace(/^\/+/, "").replace(/\/+$/, "")}`;
+  return normalized === "/" ? "" : normalized;
+}
+
 function getBasePath(): string {
   if ((window as any).baseUrl) {
     const base = (window as any).baseUrl as string;
-    return base.endsWith("/") ? base.slice(0, -1) : base;
+    return normalizeSubpath(base);
   }
   const path = window.location.pathname;
   return path.substring(0, path.lastIndexOf("/"));
