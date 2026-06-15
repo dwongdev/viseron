@@ -12,9 +12,11 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
+import { useState } from "react";
 import LazyLoad from "react-lazyload";
 
 import MutationIconButton from "components/buttons/MutationIconButton";
+import ConfirmDeleteDialog from "components/dialog/ConfirmDeleteDialog";
 import LicensePlateRecognitionIcon from "components/icons/LicensePlateRecognition";
 import { getVideoElement } from "components/player/utils";
 import VideoPlayerPlaceholder from "components/player/videoplayer/VideoPlayerPlaceholder";
@@ -38,6 +40,7 @@ export default function RecordingCard({
   const theme = useTheme();
   const { user } = useAuthContext();
   const deleteRecording = useDeleteRecording();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <Card
@@ -105,18 +108,29 @@ export default function RecordingCard({
               <MutationIconButton
                 mutation={deleteRecording}
                 color="error"
-                onClick={() => {
-                  deleteRecording.mutate({
-                    identifier: camera.identifier,
-                    recording_id: recording.id,
-                    failed: camera.failed,
-                  });
-                }}
+                onClick={() => setConfirmOpen(true)}
               >
                 <TrashCan size={20} />
               </MutationIconButton>
             </Tooltip>
           </Stack>
+          <ConfirmDeleteDialog
+            open={confirmOpen}
+            onClose={() => setConfirmOpen(false)}
+            onConfirm={() => {
+              deleteRecording.mutate(
+                {
+                  identifier: camera.identifier,
+                  recording_id: recording.id,
+                  failed: camera.failed,
+                },
+                { onSuccess: () => setConfirmOpen(false) },
+              );
+            }}
+            isPending={deleteRecording.isPending}
+            title="Delete recording"
+            description="Delete this recording? This action cannot be undone."
+          />
         </CardActions>
       ) : null}
     </Card>
