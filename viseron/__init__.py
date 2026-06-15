@@ -43,6 +43,7 @@ from viseron.components.storage.models import Events
 from viseron.config import load_config
 from viseron.const import (
     ENV_LOG_BACKUP_COUNT,
+    ENV_LOG_FD,
     ENV_LOG_MAX_BYTES,
     ENV_PROFILE_MEMORY,
     FAILED,
@@ -58,7 +59,12 @@ from viseron.domains import setup_domains
 from viseron.domains.camera.const import DOMAIN as CAMERA_DOMAIN
 from viseron.events import Event, EventData
 from viseron.exceptions import DataStreamNotLoaded
-from viseron.helpers import memory_usage_profiler, parse_size_to_bytes, utcnow
+from viseron.helpers import (
+    check_fd_usage,
+    memory_usage_profiler,
+    parse_size_to_bytes,
+    utcnow,
+)
 from viseron.helpers.json import JSONEncoder
 from viseron.helpers.logs import (
     LOG_DATE_FORMAT,
@@ -662,6 +668,11 @@ class Viseron:
             tracemalloc.start()
             self.background_scheduler.add_job(
                 memory_usage_profiler, "interval", seconds=5, args=[LOGGER]
+            )
+
+        if os.getenv(ENV_LOG_FD) == "true":
+            self.background_scheduler.add_job(
+                check_fd_usage, "interval", seconds=5, args=[LOGGER]
             )
 
 

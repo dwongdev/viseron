@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import re
+import resource
 import socket
 import sys
 import time
@@ -24,7 +25,13 @@ import slugify as unicode_slug
 import supervision as sv
 import tornado.queues as tq
 
-from viseron.const import FONT, FONT_SIZE, FONT_THICKNESS, MIN_LABEL_Y_POSITION
+from viseron.const import (
+    FONT,
+    FONT_SIZE,
+    FONT_THICKNESS,
+    MIN_LABEL_Y_POSITION,
+    ULIMIT_WARNING_THRESHOLD,
+)
 
 if TYPE_CHECKING:
     import multiprocessing as mp
@@ -774,6 +781,33 @@ def memory_usage_profiler(logger, key_type="lineno", limit=5) -> None:
     log_message += "\nTotal allocated size: %.1f KiB" % (total / 1024)
     log_message += "\n----------------------------------------------------------------"
     logger.debug(log_message)
+
+
+def check_fd_usage(logger: logging.Logger) -> None:
+    """Warn if file descriptor usage approaches the limit."""
+    try:
+        num_fds = len(os.listdir("/proc/self/fd"))
+    except FileNotFoundError:
+        return
+
+    soft_limit, _hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    pct = (num_fds / soft_limit) * 100
+
+    if pct > ULIMIT_WARNING_THRESHOLD:
+        logger.warning(
+            "File descriptor usage critical: %d/%d (%.0f%%). "
+            "Configure ulimit or restart to prevent EMFILE errors.",
+            num_fds,
+            soft_limit,
+            pct,
+        )
+        return
+    logger.debug(
+        "File descriptor usage: %d/%d (%.0f%%)",
+        num_fds,
+        soft_limit,
+        pct,
+    )
 
 
 def caller_name(skip=2) -> str:
