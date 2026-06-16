@@ -158,7 +158,6 @@ class AccessToken:
         return {
             "id": self.id,
             "name": self.name,
-            "user_id": self.user_id,
             "created_at": self.created_at,
             "expires_at": self.expires_at,
             "last_used_at": self.last_used_at,
