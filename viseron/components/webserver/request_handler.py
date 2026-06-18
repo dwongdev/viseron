@@ -18,7 +18,7 @@ from viseron.components.webserver.auth import Role
 from viseron.components.webserver.const import COMPONENT
 from viseron.domains.camera.const import DOMAIN as CAMERA_DOMAIN
 from viseron.exceptions import DomainNotRegisteredError
-from viseron.helpers import get_utc_offset, utcnow
+from viseron.helpers import get_utc_offset, normalize_subpath, utcnow
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -123,11 +123,15 @@ class ViseronRequestHandler(tornado.web.RequestHandler):
         return IOLoop.current()
 
     def get_subpath(self) -> str:
-        """Get the configured subpath.
+        """Get the subpath for URL construction.
 
-        Returns the subpath configured in the webserver configuration.
-        Returns empty string if not configured.
+        Checks the X-Ingress-Path request header first (set by Home Assistant
+        Ingress proxy), then falls back to the configured subpath.
+        Returns empty string if neither is set.
         """
+        ingress_path = self.request.headers.get("X-Ingress-Path", "")
+        if ingress_path:
+            return normalize_subpath(ingress_path)
         return self._webserver.configured_subpath
 
     def on_finish(self) -> None:

@@ -706,6 +706,27 @@ def escape_string(string: str) -> str:
     return urllib.parse.quote(string, safe="")
 
 
+def normalize_subpath(subpath: str | None) -> str:
+    """Normalize subpath to ensure it starts with / and doesn't end with /.
+
+    Collapses multiple leading slashes to a single / to prevent protocol-relative
+    URL injection (e.g. //evil.com). A bare / is treated as an empty subpath.
+    """
+    if not subpath:
+        return ""
+    subpath = subpath.strip()
+    if not subpath.startswith("/"):
+        subpath = "/" + subpath
+    if subpath.endswith("/"):
+        subpath = subpath.rstrip("/")
+    # Collapse multiple leading slashes to prevent protocol-relative URLs
+    # e.g. //evil.com -> /evil.com
+    subpath = "/" + subpath.lstrip("/")
+    if subpath == "/":
+        return ""
+    return subpath
+
+
 def parse_size_to_bytes(size_str: str) -> int:
     """Convert human-readable size strings to bytes (e.g. '10mb' -> 10485760)."""
 
