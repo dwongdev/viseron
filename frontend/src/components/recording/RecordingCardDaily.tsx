@@ -1,5 +1,6 @@
 import {
   CloudOffline,
+  Download,
   FolderDetailsReference,
   TrashCan,
 } from "@carbon/icons-react";
@@ -22,6 +23,7 @@ import ConfirmDeleteDialog from "components/dialog/ConfirmDeleteDialog";
 import { getVideoElement } from "components/player/utils";
 import VideoPlayerPlaceholder from "components/player/videoplayer/VideoPlayerPlaceholder";
 import { useAuthContext } from "context/AuthContext";
+import { useExportRecording } from "hooks/UseExportRecording";
 import { useDeleteRecording } from "lib/api/recordings";
 import { objHasValues } from "lib/helpers";
 import {
@@ -46,6 +48,7 @@ export default function RecordingCardDaily({
   const theme = useTheme();
   const { user } = useAuthContext();
   const deleteRecording = useDeleteRecording();
+  const exportRecording = useExportRecording();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
@@ -131,6 +134,20 @@ export default function RecordingCardDaily({
                   disabled={!objHasValues(recording)}
                 >
                   <FolderDetailsReference size={20} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Download Recording">
+              <span>
+                <IconButton
+                  disabled={!objHasValues(recording)}
+                  onClick={() => {
+                    if (recording) {
+                      exportRecording(camera.identifier, recording.id);
+                    }
+                  }}
+                >
+                  <Download size={20} />
                 </IconButton>
               </span>
             </Tooltip>
