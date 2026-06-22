@@ -444,6 +444,21 @@ class ViseronRequestHandler(tornado.web.RequestHandler):
             if refresh_token and hmac.compare_digest(
                 refresh_token.static_asset_key, static_asset_key.decode()
             ):
+                user = self._webserver.auth.get_user(refresh_token.user_id)
+                if user is None or not user.enabled:
+                    LOGGER.debug("Cookie session user not found or disabled")
+                    return False
+                if (
+                    user.role != Role.ADMIN
+                    and user.assigned_cameras is not None
+                    and camera.identifier not in user.assigned_cameras
+                ):
+                    LOGGER.debug(
+                        "Cookie session user %s not permitted to access camera %s",
+                        user.id,
+                        camera.identifier,
+                    )
+                    return False
                 return True
         return False
 

@@ -328,7 +328,11 @@ def _generate_playlist(
     now = utcnow()
 
     with get_session() as session:
-        stmt = select(Recordings).where(Recordings.id == recording_id)
+        stmt = (
+            select(Recordings)
+            .where(Recordings.id == recording_id)
+            .where(Recordings.camera_identifier == camera.identifier)
+        )
         recording = session.execute(stmt).scalar()
         if recording is None:
             return None
